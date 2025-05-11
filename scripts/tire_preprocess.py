@@ -90,5 +90,6 @@ lab_planes = list(cv2.split(lab))
 lab_planes[0] = clahe.apply(lab_planes[0])
 lab = cv2.merge(lab_planes)
 img_clahe = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+img_clahe = cv2.hconcat((img_clahe, img_clahe))
 
 cv2.imwrite(Path(sys.argv[2]), img_clahe)
