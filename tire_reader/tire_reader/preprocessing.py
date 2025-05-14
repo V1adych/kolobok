@@ -8,13 +8,18 @@ from matplotlib import pyplot as plt
 
 from inference import get_model
 
+
 def preprocess_image(image):
     model = get_model("tire-segmentation-eqoeu/5", api_key="BRdDttL8wwHFrA27Xv07")
 
     result = model.infer(image)
 
-    pts1 = np.array([[p.x, p.y] for p in result[0].predictions[1].points]).astype(np.int32)
-    pts2 = np.array([[p.x, p.y] for p in result[0].predictions[0].points]).astype(np.int32)
+    pts1 = np.array([[p.x, p.y] for p in result[0].predictions[1].points]).astype(
+        np.int32
+    )
+    pts2 = np.array([[p.x, p.y] for p in result[0].predictions[0].points]).astype(
+        np.int32
+    )
 
     mask = cv2.fillPoly(
         cv2.fillPoly(
@@ -38,21 +43,25 @@ def preprocess_image(image):
     y_min = np.min(y)
     y_max = np.max(y)
 
-    bb = np.array([
-        [x_min, y_min],
-        [x_max, y_min],
-        [x_max, y_max],
-        [x_min, y_max],
-    ]).astype(np.float32)
+    bb = np.array(
+        [
+            [x_min, y_min],
+            [x_max, y_min],
+            [x_max, y_max],
+            [x_min, y_max],
+        ]
+    ).astype(np.float32)
 
     target_size = (x_max - x_min, y_max - y_min)
 
-    dst_bb = np.array([
-        [10, 10],
-        [target_size[0] - 10, 10],
-        [target_size[0] - 10, target_size[1] - 10],
-        [10, target_size[1] - 10],
-    ]).astype(np.float32)
+    dst_bb = np.array(
+        [
+            [10, 10],
+            [target_size[0] - 10, 10],
+            [target_size[0] - 10, target_size[1] - 10],
+            [10, target_size[1] - 10],
+        ]
+    ).astype(np.float32)
 
     transform = cv2.getPerspectiveTransform(bb, dst_bb)
     warped_img = cv2.warpPerspective(image, transform, target_size)
@@ -80,7 +89,9 @@ def preprocess_image(image):
         flags=cv2.INTER_CUBIC,
     )
 
-    cut = strip[:, np.mean(strip_mask[:, :, 0] / 255, axis=0) > 0.5].transpose(1, 0, 2)[::-1]
+    cut = strip[:, np.mean(strip_mask[:, :, 0] / 255, axis=0) > 0.5].transpose(1, 0, 2)[
+        ::-1
+    ]
 
     clahe = cv2.createCLAHE(clipLimit=5)
 
