@@ -11,3 +11,10 @@ weights/
 
 .envrc
 .env
+.vscode
+__pycache__
+
+*.pth
+*.zip
+*.egg-info
+
