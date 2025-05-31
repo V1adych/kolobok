@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 import os
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 import torch
 from torchvision.transforms import functional as VF, InterpolationMode
@@ -12,6 +12,9 @@ from detectron2.engine import DefaultTrainer
 from detectron2.projects.deeplab import add_deeplab_config
 
 from huggingface_hub import hf_hub_download, login
+
+from tyro.thread_estimator.coco_stuff import COCO_CATEGORIES
+
 
 cur_dir = Path(__file__)
 root_dir = cur_dir.parent.parent.parent
@@ -29,6 +32,9 @@ except ImportError:
 
 CFG_PATH = san_dir / "configs/san_clip_vit_res4_coco.yaml"
 CKPT_PATH = "huggingface:san_vit_b_16.pth"
+
+AugmentationMode = Literal["COCO-stuff", "COCO-all"]
+SegmentationMode = Literal["accurate", "efficient"]
 
 
 def download_model(model_path: str):
@@ -137,15 +143,17 @@ def setup(config_file: str, device=None):
 class SegmentationInferencer:
     def __init__(
         self,
-        threshold: float = 0.5,
         device: str = "cpu",
-        vocab: Optional[List[str]] = None,
+        target: str = "tire",
+        vocab_aug_mode: AugmentationMode = "COCO-stuff",
+        segmentation_mode: SegmentationMode = "accurate",
     ):
-        self.threshold = threshold
         self.device = device
-        if vocab is None:
-            vocab = ["tire"]
-        self.vocab = vocab
+        self.target = target
+        self.vocab = [target]
+        self.vocab_aug_mode = vocab_aug_mode
+        self.segmentation_mode = segmentation_mode
+        self._augment_vocabulary()
 
         cfg = setup(str(CFG_PATH))
         self.model = DefaultTrainer.build_model(cfg)
@@ -168,13 +176,55 @@ class SegmentationInferencer:
                 img, (int(640 * h / w), 640), interpolation=InterpolationMode.BICUBIC
             )
 
-        result = self.model([{"image": img_resized, "vocabulary": self.vocab}])
+        result = self.model([{"image": img_resized, "vocabulary": self.vocab_aug}])
 
         seg = result[0]["sem_seg"]
-        seg = VF.resize(seg, (h, w), interpolation=InterpolationMode.BICUBIC).squeeze(0)
-        seg = (seg > self.threshold).to(torch.uint8)
+        
+        if self.segmentation_mode == "efficient":
+            seg = torch.where(torch.argmax(seg, dim=0, keepdim=True) == 0, 1, 0).to(
+                torch.uint8
+            )
+            seg = VF.resize(
+                seg, (h, w), interpolation=InterpolationMode.NEAREST
+            ).squeeze(0)
+
+        elif self.segmentation_mode == "accurate":
+            seg = (
+                torch.where(
+                    torch.argmax(
+                        VF.resize(seg, (h, w), interpolation=InterpolationMode.BICUBIC),
+                        dim=0,
+                        keepdim=True,
+                    )
+                    == 0,
+                    1,
+                    0,
+                )
+                .to(torch.uint8)
+                .squeeze(0)
+            )
+        else:
+            raise ValueError(
+                "segmentation_mode must be one of ['accurate', 'efficient']"
+            )
 
         return seg
+
+    def _augment_vocabulary(self):
+        default_voc = [c["name"] for c in COCO_CATEGORIES]
+        stuff_voc = [
+            c["name"]
+            for c in COCO_CATEGORIES
+            if "isthing" not in c or c["isthing"] == 0
+        ]
+        vocab_set = set(self.vocab)
+
+        if self.vocab_aug_mode == "COCO-all":
+            self.vocab_aug = self.vocab + [c for c in default_voc if c not in vocab_set]
+        elif self.vocab_aug_mode == "COCO-stuff":
+            self.vocab_aug = self.vocab + [c for c in stuff_voc if c not in vocab_set]
+        else:
+            self.vocab_aug = self.vocab
 
     def __call__(self, img: torch.Tensor) -> torch.Tensor:
         return self.forward(img)

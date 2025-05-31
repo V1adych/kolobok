@@ -1,2 +1,2 @@
 import tyro
-from tyro.thread_estimator.segmentator import SegmentationInferencer
+from tyro.thread_estimator.segmentator import SegmentationInferenser
