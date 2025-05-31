@@ -13,7 +13,7 @@ from detectron2.projects.deeplab import add_deeplab_config
 
 from huggingface_hub import hf_hub_download, login
 
-from tyro.thread_estimator.coco_stuff import COCO_CATEGORIES
+from tire_vision.thread_estimator.coco_stuff import COCO_CATEGORIES
 
 
 cur_dir = Path(__file__)
