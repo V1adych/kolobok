@@ -1,6 +1,3 @@
-[submodule "SAN"]
-	path = external/SAN
-	url = git@github.com:MendelXu/SAN.git
 [submodule "external/mmengine"]
 	path = external/mmengine
 	url = git@github.com:V1adych/mmengine.git
