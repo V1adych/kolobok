@@ -19,6 +19,8 @@ from torchvision.models import (
     Swin_S_Weights,
     efficientnet_b7,
     EfficientNet_B7_Weights,
+    efficientnet_b3,
+    EfficientNet_B3_Weights,
     swin_v2_t,
     Swin_V2_T_Weights,
     swin_v2_s,
@@ -49,7 +51,12 @@ df_train, df_val = train_test_split(df, test_size=0.2, random_state=42)
 
 
 class ThreadDataset(Dataset):
-    def __init__(self, data: pd.DataFrame, data_root_dir: str, transform: Optional[nn.Module] = None):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        data_root_dir: str,
+        transform: Optional[nn.Module] = None,
+    ):
         self.data = data
         self.data_root_dir = Path(data_root_dir)
         self.image_paths = []
@@ -63,14 +70,14 @@ class ThreadDataset(Dataset):
             self.labels.append(row["label"])
 
         self.transform = transform
-        
+
     def __len__(self):
         return len(self.image_paths)
-    
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, float]:
         image_path = self.image_paths[idx]
         label = self.labels[idx]
-        
+
         image = read_image(str(image_path))
         if self.transform is not None:
             image = self.transform(image)
@@ -145,27 +152,39 @@ models = {}
 # model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
 # model.fc = nn.Sequential(nn.Linear(2048, 512), nn.ReLU(), nn.Linear(512, 1))
 
-models["swin_v2"] = swin_v2_s(weights=Swin_V2_S_Weights.IMAGENET1K_V1)
-models["swin_v2"].head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
+# models["swin_v2"] = swin_v2_s(weights=Swin_V2_S_Weights.IMAGENET1K_V1)
+# models["swin_v2"].head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
 
-# model = swin_s(weights=Swin_S_Weights.IMAGENET1K_V1)
-# model.head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
+models["effnet_b3"] = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1)
+models["effnet_b3"].classifier = nn.Sequential(
+    nn.Linear(1536, 512), nn.SiLU(), nn.Linear(512, 1)
+)
+
+models["swin_v2"] = swin_v2_t(weights=Swin_V2_T_Weights.IMAGENET1K_V1)
+models["swin_v2"].head = nn.Sequential(
+    nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1)
+)
+
+models["swin"] = swin_s(weights=Swin_S_Weights.IMAGENET1K_V1)
+models["swin"].head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
 
 models["effnet_b7"] = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
-models["effnet_b7"].classifier = nn.Sequential(nn.Linear(2560, 512), nn.SiLU(), nn.Linear(512, 1))
-
-# model = swin_v2_t(weights=Swin_V2_T_Weights.IMAGENET1K_V1)
-# model.features[0][0] = nn.Conv2d(in_channels=3, out_channels=96, kernel_size=(5, 5), stride=(2, 2))
-# model.head = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
+models["effnet_b7"].classifier = nn.Sequential(
+    nn.Linear(2560, 512), nn.SiLU(), nn.Linear(512, 1)
+)
 
 # model = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_SWAG_LINEAR_V1)
 # model.heads = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
 
 models["densenet201"] = densenet201(weights=DenseNet201_Weights.IMAGENET1K_V1)
-models["densenet201"].classifier = nn.Sequential(nn.Linear(1920, 512), nn.ReLU(), nn.Linear(512, 1))
+models["densenet201"].classifier = nn.Sequential(
+    nn.Linear(1920, 512), nn.ReLU(), nn.Linear(512, 1)
+)
 
 models["googlenet"] = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
-models["googlenet"].fc = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, 1))
+models["googlenet"].fc = nn.Sequential(
+    nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, 1)
+)
 
 # model = convnext_small(weights=ConvNeXt_Small_Weights.IMAGENET1K_V1)
 # model.classifier[-1] = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
@@ -246,17 +265,17 @@ def train_fn(
             best_model = deepcopy(model).cpu()
 
     model.cpu()
-    return best_model
+    return best_model, best_val_metric
 
 
 for model_name, model in models.items():
     print(f"TRAINING {model_name}")
-    model = train_fn(
+    model, correct_fraction = train_fn(
         model,
         train_loader,
         val_loader,
         num_epochs=50,
     )
-    print()
- 
-    torch.save(model.state_dict(), f"checkpoints/{model_name}.pt")
+    print(f"{model_name}: {correct_fraction:.4f} validation samples within tolerance!")
+
+    torch.save(model.state_dict(), f"checkpoints/{model_name}_{correct_fraction:.4f}.pt")
