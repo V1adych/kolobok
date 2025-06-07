@@ -18,10 +18,10 @@ from tire_vision.thread_estimator.coco_stuff import COCO_CATEGORIES
 
 cur_dir = Path(__file__)
 root_dir = cur_dir.parent.parent.parent
-san_dir = root_dir / "SAN"
+san_dir = root_dir / "external" / "SAN"
 
 try:
-    sys.path.append("SAN")
+    sys.path.append(str(san_dir))
     import san  # noqa: F401
 
 except ImportError:
