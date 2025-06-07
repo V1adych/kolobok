@@ -16,23 +16,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # tire_reader:
-  #   build: ./tire_reader
-  #   container_name: kolobok_tire_reader
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   environment:
-  #     - DB_HOST=db
-  #     - DB_PORT=3306
-  #     - DB_USER=${MYSQL_USER}
-  #     - DB_PASSWORD=${MYSQL_PASSWORD}
-  #     - DB_NAME=${MYSQL_DATABASE}
-
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - ./tire_reader:/app
+  tire_reader:
+    build:
+      context: ./tire_vision
+      dockerfile: Dockerfile
+    container_name: kolobok_tire_reader
+    environment:
+      - API_TOKEN=${API_TOKEN}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
 
 volumes:
   db_data:
