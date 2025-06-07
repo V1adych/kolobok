@@ -1,4 +1,7 @@
-import logging, json
+import logging, json, base64, requests
+import base64
+import io
+
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -14,10 +17,15 @@ from telegram.ext import (
     filters,
 )
 
+SERVER_IP = ''
 BOT_TOKEN = ''
 with open('credentials.json', 'r') as file:
     data = json.load(file)
     BOT_TOKEN = data['bot_token']
+    SERVER_IP = data['server_ip']
+
+TREAD_ANALYSIS_URL = f'http://{SERVER_IP}/api/v1/analyze_thread'
+TIRE_READING_URL = f'http://{SERVER_IP}/api/v1/identify_tire'
 
 # Enable logging
 logging.basicConfig(
@@ -27,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Conversation states
-MENU, SIDE_PHOTO, SIDE_RESULT, SIDE_CUSTOM, TREAD_PHOTO, TREAD_RESULT, TREAD_CUSTOM = range(7)
+PASSWORD, MENU, SIDE_PHOTO, SIDE_RESULT, SIDE_CUSTOM, TREAD_PHOTO, TREAD_RESULT, TREAD_CUSTOM = range(8)
 
 # Callback data identifiers
 CB_MENU, CB_SIDE, CB_TREAD = "menu", "side", "tread"
@@ -44,7 +52,7 @@ def build_main_menu() -> InlineKeyboardMarkup:
 
 
 async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Always send the main menu as a new message."""
+    """Sends the main menu as a new message."""
     # Acknowledge any callback so the “loading…” spinner goes away
     if update.callback_query:
         await update.callback_query.answer()
@@ -61,9 +69,13 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handler for /start — show main menu."""
-    return await send_main_menu(update, context)
+    await update.message.reply_text("Введите пароль:")
+    return PASSWORD
 
+async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    token = update.message.text
+    context.user_data['token'] = f"Bearer {token}"
+    return await send_main_menu(update, context)
 
 async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle main‐menu button presses."""
@@ -86,11 +98,30 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Process side‐view photo (placeholder)."""
     await update.message.reply_text("Обработка фотографии...")
-    # TODO: image processing here
+    
+    photo = update.message.photo[-1]
+    tg_file = await photo.get_file()
+
+    bio = io.BytesIO()
+    await tg_file.download_to_memory(out=bio)
+    bio.seek(0)
+
+    b64 = base64.b64encode(bio.read()).decode('utf-8')
+    header = {"Authorization": context.user_data['token']}
+    payload = {"image": b64, 
+               "token": context.user_data['token']}
+    
+    resp = requests.post(TIRE_READING_URL, headers=header, json=payload)
+    resp.raise_for_status()
+    print(resp.json())
+
+    tire_mark = resp.json()["tire_mark"]
+    tire_manufacturer = resp.json()["tire_manufacturer"]
+    tire_diameter = resp.json()["tire_diameter"]
+
     await update.message.reply_text(
-        "Марка: …\nМодель: …\nДиаметр: …",
+        f"Марка: {tire_mark}\nМодель: {tire_manufacturer}\nДиаметр: {tire_diameter}",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("OK", callback_data=CB_SIDE_OK)],
             [InlineKeyboardButton("Свой вариант", callback_data=CB_SIDE_CUSTOM)],
@@ -105,7 +136,6 @@ async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
 
     if query.data == CB_SIDE_OK:
-        # TODO: send results to server
         await context.bot.send_message(query.message.chat_id, "Хорошего дня!")
         return await send_main_menu(update, context)
 
@@ -117,17 +147,35 @@ async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def side_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle free‐text for side‐view."""
     user_text = update.message.text
-    # TODO: use user_text and send to server
     await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
     return await send_main_menu(update, context)
 
 
 async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Process tread photo (placeholder)."""
+    """Process tread photo"""
     await update.message.reply_text("Обработка фотографии...")
-    # TODO: image processing here
+    
+    photo = update.message.photo[-1]
+    tg_file = await photo.get_file()
+
+    bio = io.BytesIO()
+    await tg_file.download_to_memory(out=bio)
+    bio.seek(0)
+
+    b64 = base64.b64encode(bio.read()).decode('utf-8')
+    header = {"Authorization": context.user_data['token']}
+    payload = {"image": b64, 
+               "token": context.user_data['token']}
+    
+    resp = requests.post(TREAD_ANALYSIS_URL, headers=header, json=payload)
+    resp.raise_for_status()
+    print(resp.json())
+
+    tread_depth = resp.json()["thread_depth"]
+    spikes_count = resp.json()["spikes_count"]
+
     await update.message.reply_text(
-        "Глубина протектора: …\nКоличество шин: …",
+        f"Глубина протектора: {tread_depth}\nКоличество шипов: {spikes_count}",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("OK", callback_data=CB_TREAD_OK)],
             [InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
@@ -142,7 +190,6 @@ async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.answer()
 
     if query.data == CB_TREAD_OK:
-        # TODO: send results to server
         await context.bot.send_message(query.message.chat_id, "Хорошего дня!")
         return await send_main_menu(update, context)
 
@@ -154,7 +201,6 @@ async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def tread_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle free‐text for tread."""
     user_text = update.message.text
-    # TODO: use user_text and send to server
     await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
     return await send_main_menu(update, context)
 
@@ -171,6 +217,7 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
+            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
             MENU: [CallbackQueryHandler(menu_choice)],
             SIDE_PHOTO: [MessageHandler(filters.PHOTO, side_photo)],
             SIDE_RESULT: [CallbackQueryHandler(side_result)],
