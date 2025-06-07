@@ -1,9 +1,3 @@
-[submodule "external/mmengine"]
-	path = external/mmengine
-	url = git@github.com:V1adych/mmengine.git
-[submodule "external/mmsegmentation"]
-	path = external/mmsegmentation
-	url = git@github.com:V1adych/mmsegmentation.git
 [submodule "external/SAN"]
 	path = external/SAN
 	url = git@github.com:MendelXu/SAN.git
