@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 import os
-from typing import List, Optional, Literal
+from typing import Literal
 
 import torch
 from torchvision.transforms import functional as VF, InterpolationMode
@@ -13,7 +13,7 @@ from detectron2.projects.deeplab import add_deeplab_config
 
 from huggingface_hub import hf_hub_download, login
 
-from tire_vision.thread_estimator.coco_stuff import COCO_CATEGORIES
+from tire_vision.thread.coco_stuff import COCO_CATEGORIES
 
 
 cur_dir = Path(__file__)
@@ -179,7 +179,7 @@ class SegmentationInferencer:
         result = self.model([{"image": img_resized, "vocabulary": self.vocab_aug}])
 
         seg = result[0]["sem_seg"]
-        
+
         if self.segmentation_mode == "efficient":
             seg = torch.where(torch.argmax(seg, dim=0, keepdim=True) == 0, 1, 0).to(
                 torch.uint8
