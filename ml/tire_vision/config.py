@@ -13,7 +13,7 @@ if DEVICE.startswith("cuda") and not torch.cuda.is_available():
 
 @dataclass
 class SegmentationConfig:
-    device: str = "cuda"
+    device: str = DEVICE
     target: str = "wheel-tire-thread"
     vocab_aug_mode: Literal["COCO-stuff", "COCO-all", "none"] = "COCO-stuff"
     segmentation_mode: Literal["accurate", "efficient"] = "accurate"
@@ -24,7 +24,7 @@ class SegmentationConfig:
 class SpikePipelineConfig:
     detector_checkpoint: str = os.environ["SPIKE_DETECTOR_CHECKPOINT"]
     classifier_checkpoint: str = os.environ["SPIKE_CLASSIFIER_CHECKPOINT"]
-    device: str = "cuda"
+    device: str = DEVICE
     detection_threshold: float = 0.5
     erosion_iterations: int = 3
     dilation_iterations: int = 3
@@ -35,7 +35,7 @@ class SpikePipelineConfig:
 class DepthEstimatorConfig:
     model_name: str = os.environ["DEPTH_ESTIMATOR_MODEL_NAME"]
     checkpoint: str = os.environ["DEPTH_ESTIMATOR_CHECKPOINT"]
-    device: str = "cuda"
+    device: str = DEVICE
     resize_shape: Tuple[int, int] = (512, 512)
 
 

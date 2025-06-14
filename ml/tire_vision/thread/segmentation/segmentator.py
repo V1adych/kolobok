@@ -127,7 +127,7 @@ def add_san_config(cfg):
     cfg.MODEL.FLASH = False
 
 
-def setup(config_file: str, device=None):
+def setup(config_file: str):
     """
     Create configs and perform basic setups.
     """
@@ -136,7 +136,7 @@ def setup(config_file: str, device=None):
     add_deeplab_config(cfg)
     add_san_config(cfg)
     cfg.merge_from_file(config_file)
-    cfg.MODEL.DEVICE = device or "cuda" if torch.cuda.is_available() else "cpu"
+    cfg.MODEL.DEVICE = SegmentationConfig.device
     cfg.freeze()
     return cfg
 
