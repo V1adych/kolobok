@@ -13,11 +13,12 @@ from detectron2.projects.deeplab import add_deeplab_config
 
 from huggingface_hub import hf_hub_download, login
 
-from tire_vision.thread.coco_stuff import COCO_CATEGORIES
+from tire_vision.thread.segmentation.coco_stuff import COCO_CATEGORIES
+from tire_vision.config import SegmentationConfig
 
 
 cur_dir = Path(__file__)
-root_dir = cur_dir.parent.parent.parent
+root_dir = cur_dir.parent.parent.parent.parent
 san_dir = root_dir / "external" / "SAN"
 
 try:
@@ -143,27 +144,26 @@ def setup(config_file: str, device=None):
 class SegmentationInferencer:
     def __init__(
         self,
-        device: str = "cpu",
-        target: str = "tire",
-        vocab_aug_mode: AugmentationMode = "COCO-stuff",
-        segmentation_mode: SegmentationMode = "accurate",
+        config: SegmentationConfig,
     ):
-        self.device = device
-        self.target = target
-        self.vocab = [target]
-        self.vocab_aug_mode = vocab_aug_mode
-        self.segmentation_mode = segmentation_mode
+        self.config = config
+        self.device = config.device
+        self.target = config.target
+        self.vocab = [self.target]
+        self.vocab_aug_mode = config.vocab_aug_mode
+        self.segmentation_mode = config.segmentation_mode
         self._augment_vocabulary()
 
-        cfg = setup(str(CFG_PATH))
+        cfg = setup(str(CFG_PATH), device=self.device)
         self.model = DefaultTrainer.build_model(cfg)
         self.ckpt_path = download_model(str(CKPT_PATH))
         DetectionCheckpointer(self.model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             self.ckpt_path
         )
         self.model.eval()
-        self.model.to(device)
+        self.model.to(self.device)
 
+    @torch.no_grad()
     def forward(self, img: torch.Tensor) -> torch.Tensor:
         *_, h, w = img.shape
 
@@ -225,6 +225,32 @@ class SegmentationInferencer:
             self.vocab_aug = self.vocab + [c for c in stuff_voc if c not in vocab_set]
         else:
             self.vocab_aug = self.vocab
+
+    def crop_tire(self, img: torch.Tensor) -> torch.Tensor:
+        *_, h, w = img.shape
+
+        padding = (
+            int(h * self.config.padding_frac),
+            int(w * self.config.padding_frac),
+        )
+
+        mask = self.forward(img)
+
+        i, j = torch.where(mask == 1)
+
+        min_i, max_i = torch.min(i), torch.max(i)
+        min_j, max_j = torch.min(j), torch.max(j)
+
+        min_i = max(0, min_i - padding[0])
+        max_i = min(h, max_i + padding[0])
+        min_j = max(0, min_j - padding[1])
+        max_j = min(w, max_j + padding[1])
+
+        return img[..., min_i:max_i, min_j:max_j]
+
+    def rembg_tire(self, img: torch.Tensor) -> torch.Tensor:
+        mask = self.forward(img)
+        return img * mask + 255 * (1 - mask)
 
     def __call__(self, img: torch.Tensor) -> torch.Tensor:
         return self.forward(img)
