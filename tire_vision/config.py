@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import os
-from typing import Literal
+from typing import Literal, Tuple
 
 
 @dataclass
@@ -28,6 +28,7 @@ class DepthEstimatorConfig:
     model_name: str = os.environ["DEPTH_ESTIMATOR_MODEL_NAME"]
     checkpoint: str = os.environ["DEPTH_ESTIMATOR_CHECKPOINT"]
     device: str = "cuda"
+    resize_shape: Tuple[int, int] = (512, 512)
 
 
 @dataclass

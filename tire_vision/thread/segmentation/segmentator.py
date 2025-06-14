@@ -227,6 +227,7 @@ class SegmentationInferencer:
             self.vocab_aug = self.vocab
 
     def crop_tire(self, img: torch.Tensor) -> torch.Tensor:
+        img = img.to(self.device)
         *_, h, w = img.shape
 
         padding = (
@@ -235,6 +236,7 @@ class SegmentationInferencer:
         )
 
         mask = self.forward(img)
+        img_rembg = img * mask + 255 * (1 - mask)
 
         i, j = torch.where(mask == 1)
 
@@ -246,7 +248,7 @@ class SegmentationInferencer:
         min_j = max(0, min_j - padding[1])
         max_j = min(w, max_j + padding[1])
 
-        return img[..., min_i:max_i, min_j:max_j]
+        return img_rembg[..., min_i:max_i, min_j:max_j]
 
     def rembg_tire(self, img: torch.Tensor) -> torch.Tensor:
         mask = self.forward(img)
