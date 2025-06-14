@@ -127,7 +127,7 @@ def add_san_config(cfg):
     cfg.MODEL.FLASH = False
 
 
-def setup(config_file: str):
+def setup(config_file: str, device: str):
     """
     Create configs and perform basic setups.
     """
@@ -136,8 +136,7 @@ def setup(config_file: str):
     add_deeplab_config(cfg)
     add_san_config(cfg)
     cfg.merge_from_file(config_file)
-    cfg.MODEL.DEVICE = SegmentationConfig.device
-    cfg.freeze()
+    cfg.MODEL.DEVICE = device
     return cfg
 
 

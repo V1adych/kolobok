@@ -1,5 +1,6 @@
-import logging, json, base64, requests
+import logging
 import base64
+import requests
 import io
 import os
 
@@ -20,7 +21,7 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-APP_URL = os.environ["APP_URL"] if "APP_URL" in os.environ else "ml:8000"
+APP_URL = "ml:8000"
 
 TREAD_ANALYSIS_URL = f"http://{APP_URL}/api/v1/analyze_thread"
 TIRE_READING_URL = f"http://{APP_URL}/api/v1/identify_tire"
