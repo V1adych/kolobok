@@ -27,6 +27,7 @@ services:
       - SPIKE_CLASSIFIER_CHECKPOINT=${SPIKE_CLASSIFIER_CHECKPOINT}
       - DEPTH_ESTIMATOR_MODEL_NAME=${DEPTH_ESTIMATOR_MODEL_NAME}
       - DEPTH_ESTIMATOR_CHECKPOINT=${DEPTH_ESTIMATOR_CHECKPOINT}
+      - DEVICE=${DEVICE}
     ports:
       - "8000:8000"
 
@@ -38,6 +39,7 @@ services:
     environment:
       - API_TOKEN=${API_TOKEN}
       - BOT_TOKEN=${BOT_TOKEN}
+      - APP_URL=${APP_URL}
     ports:
       - "5000:5000"
 

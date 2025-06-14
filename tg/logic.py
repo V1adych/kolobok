@@ -20,10 +20,10 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-SERVER_IP = os.environ["SERVER_IP"] if "SERVER_IP" in os.environ else "ml:8000"
+APP_URL = os.environ["APP_URL"] if "APP_URL" in os.environ else "ml:8000"
 
-TREAD_ANALYSIS_URL = f"http://{SERVER_IP}/api/v1/analyze_thread"
-TIRE_READING_URL = f"http://{SERVER_IP}/api/v1/identify_tire"
+TREAD_ANALYSIS_URL = f"http://{APP_URL}/api/v1/analyze_thread"
+TIRE_READING_URL = f"http://{APP_URL}/api/v1/identify_tire"
 
 # Enable logging
 logging.basicConfig(
