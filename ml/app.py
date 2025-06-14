@@ -9,14 +9,13 @@ from pydantic import BaseModel
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 
-from utils import get_thread_stats
+from utils import get_thread_stats, add_annotations
 
 
 app = FastAPI()
 bearer_scheme = HTTPBearer()
 
 API_TOKEN = os.environ["API_TOKEN"]
-
 
 
 def verify_token(
@@ -57,9 +56,15 @@ async def analyze_thread(
     validate_image(req.image)
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
     result = get_thread_stats(image)
+    image_with_annotations = add_annotations(image, result["spikes"])
+    pil_image = Image.fromarray(image_with_annotations)
+    buffered = io.BytesIO()
+    pil_image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return {
         "thread_depth": result["depth"],
-        "spikes_count": len(result["spikes"]),
+        "spikes": result["spikes"],
+        "image": img_str,
     }
 
 

@@ -3,6 +3,7 @@ import base64
 import requests
 import io
 import os
+from PIL import Image
 
 from telegram import (
     Update,
@@ -182,13 +183,29 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     resp = requests.post(TREAD_ANALYSIS_URL, headers=header, json=payload)
     resp.raise_for_status()
-    print(resp.json())
 
-    tread_depth = resp.json()["thread_depth"]
-    spikes_count = resp.json()["spikes_count"]
+    data = resp.json()
+
+    print(f"keys: {data.keys()}")
+
+    tread_depth = data["thread_depth"]
+    spikes = data["spikes"]
+    annotated_image_base64 = data["image"]
+
+    num_bad = sum(spike["class"] == 1 for spike in spikes)
+    num_good = len(spikes) - num_bad
+
+    bio = io.BytesIO(base64.b64decode(annotated_image_base64))
+    bio.seek(0)
+    image = Image.open(bio)
+    image.save(bio, format="PNG")
+    bio.seek(0)
+    await update.message.reply_photo(bio)
 
     await update.message.reply_text(
-        f"Глубина протектора: {tread_depth}\nКоличество шипов: {spikes_count}",
+        f"Глубина протектора: {tread_depth}\n"
+        + f"Количество плохих шипов: {num_bad}\n"
+        + f"Количество хороших шипов: {num_good}",
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("OK", callback_data=CB_TREAD_OK)],

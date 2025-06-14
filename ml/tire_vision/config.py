@@ -11,6 +11,16 @@ if DEVICE.startswith("cuda") and not torch.cuda.is_available():
     DEVICE = "cpu"
 
 
+CLASS_MAPPING = {
+    0: "good",
+    1: "bad",
+}
+
+CLASS_COLORS = {
+    "good": (0, 255, 0),
+    "bad": (0, 0, 255),
+}
+
 @dataclass
 class SegmentationConfig:
     device: str = DEVICE

@@ -6,4 +6,4 @@ RUN pip install requests pillow python-telegram-bot
 
 COPY . .
 
-CMD ["python", "logic.py"]
+CMD ["python", "main.py"]

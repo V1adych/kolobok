@@ -23,12 +23,6 @@ class SpikePipeline:
 
         self.kernel = np.ones(shape=(3, 3), dtype=np.uint8)
 
-        self.classes = {
-            0: "standard",
-            1: "studded",
-            2: "empty",
-        }
-
     @torch.no_grad()
     def detect_spikes(self, image: torch.Tensor) -> List[Dict[str, Any]]:
         *_, h, w = image.shape
@@ -78,8 +72,6 @@ class SpikePipeline:
             spike_class = torch.argmax(spike_class_logits).item()
             if spike_class == 2:
                 continue
-
-            spike_class = self.classes[spike_class]
 
             spikes.append(
                 {

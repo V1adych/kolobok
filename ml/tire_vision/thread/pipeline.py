@@ -24,8 +24,7 @@ class TireVisionPipeline:
 
         depth = self.depth_pipeline.estimate_depth(cropped_image)
 
-        cropped_image = cropped_image.cpu().numpy()
-        cropped_image = cropped_image.transpose(1, 2, 0)
+        cropped_image = cropped_image.cpu().numpy().transpose(1, 2, 0)
         cropped_image = cropped_image * 255
         cropped_image = cropped_image.astype(np.uint8)
 
