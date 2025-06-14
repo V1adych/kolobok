@@ -7,11 +7,16 @@ from fastapi import FastAPI, HTTPException, Depends, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from PIL import Image, UnidentifiedImageError
+import numpy as np
+
+from utils import get_thread_stats
+
 
 app = FastAPI()
 bearer_scheme = HTTPBearer()
 
 API_TOKEN = os.environ["API_TOKEN"]
+
 
 
 def verify_token(
@@ -50,9 +55,11 @@ async def analyze_thread(
     token: str = Depends(verify_token),
 ):
     validate_image(req.image)
+    image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
+    result = get_thread_stats(image)
     return {
-        "thread_depth": random.uniform(1, 12),
-        "spikes_count": random.randint(0, 60),
+        "thread_depth": result["depth"],
+        "spikes_count": len(result["spikes"]),
     }
 
 
