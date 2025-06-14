@@ -8,7 +8,4 @@ RUN ./build.sh
 
 COPY . .
 
-RUN echo "Sanity check"
-RUN python run.py test_input.png
-
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
