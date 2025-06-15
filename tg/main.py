@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # Conversation states
 (
     PASSWORD,
+    INCORRECT_PASSWORD,
     MENU,
     SIDE_PHOTO,
     SIDE_RESULT,
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
     TREAD_PHOTO,
     TREAD_RESULT,
     TREAD_CUSTOM,
-) = range(8)
+) = range(9)
 
 # Callback data identifiers
 CB_MENU, CB_SIDE, CB_TREAD = "menu", "side", "tread"
@@ -55,8 +56,8 @@ def build_main_menu() -> InlineKeyboardMarkup:
     """Return the main menu keyboard."""
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("Марка и модель шины", callback_data=CB_SIDE)],
-            [InlineKeyboardButton("Глубина протектора", callback_data=CB_TREAD)],
+            [InlineKeyboardButton("Глубина протектора и анализ шипов", callback_data=CB_TREAD)],
+            # [InlineKeyboardButton("Марка и модель шины", callback_data=CB_SIDE)]
         ]
     )
 
@@ -80,12 +81,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Введите пароль:")
     return PASSWORD
 
-
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     token = update.message.text
-    context.user_data["token"] = f"Bearer {token}"
-    return await send_main_menu(update, context)
-
+    true_token = os.environ["API_TOKEN"] 
+    if token != true_token:
+        return await incorrect_password(update, context)
+    else:
+        context.user_data["token"] = f"Bearer {token}"
+        return await send_main_menu(update, context)
+    
+async def incorrect_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("Неверный пароль, попробуйте ещё раз:")
+    return PASSWORD
 
 async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle main‐menu button presses."""
@@ -136,7 +143,7 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("OK", callback_data=CB_SIDE_OK)],
-                [InlineKeyboardButton("Свой вариант", callback_data=CB_SIDE_CUSTOM)],
+                #[InlineKeyboardButton("Свой вариант", callback_data=CB_SIDE_CUSTOM)],
             ]
         ),
     )
@@ -186,7 +193,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     data = resp.json()
 
-    print(f"keys: {data.keys()}")
+    #logger.log(msg=f"keys: {data.keys()}")
 
     tread_depth = data["thread_depth"]
     spikes = data["spikes"]
@@ -203,13 +210,13 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_photo(bio)
 
     await update.message.reply_text(
-        f"Глубина протектора: {tread_depth}\n"
+        f"Глубина протектора: {tread_depth:.2f}\n"
         + f"Количество плохих шипов: {num_bad}\n"
         + f"Количество хороших шипов: {num_good}",
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("OK", callback_data=CB_TREAD_OK)],
-                [InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
+                #[InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
             ]
         ),
     )
