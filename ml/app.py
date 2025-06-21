@@ -56,7 +56,7 @@ async def analyze_thread(
     validate_image(req.image)
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
     result = get_thread_stats(image)
-    image_with_annotations = add_annotations(image, result["spikes"])
+    image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
     pil_image = Image.fromarray(image_with_annotations)
     buffered = io.BytesIO()
     pil_image.save(buffered, format="PNG")
