@@ -6,7 +6,7 @@ import numpy as np
 import replicate
 import io
 
-from ..config import OCRConfig
+from tire_vision.config import OCRConfig
 
 
 class TireOCR:

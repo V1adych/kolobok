@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 import os
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Optional
 import warnings
 
 import torch
+import cv2
 
 DEVICE = os.environ["DEVICE"]
 if DEVICE.startswith("cuda") and not torch.cuda.is_available():
@@ -59,10 +60,28 @@ each field must be either the answer to the question, or null, if you cannot fin
 Provide output strictly in json format, without anything else 
 Example:
 {
-"manufacturer": "...",
-"model": "...",
-"tire_size_string": "..."
+    "manufacturer": "...",
+    "model": "...",
+    "tire_size_string": "..."
 }"""
+
+
+@dataclass
+class TireDetectorConfig:
+    model_id: str = os.environ["TIRE_DETECTOR_MODEL_ID"]
+    roboflow_api_key: str = os.environ["ROBOFLOW_API_KEY"]
+
+
+@dataclass
+class TireUnwrapperConfig:
+    crop_enlarge_factor: float = 1.1
+    polar_angle_steps: int = 360
+    polar_flags: int = cv2.WARP_POLAR_LINEAR | cv2.WARP_FILL_OUTLIERS
+    perspective_margin: int = 10 
+    clahe_clip_limit: float = 2.0
+    clahe_tile_grid_size: Tuple[int, int] = (8, 8)
+    cut_strip: bool = True
+    cut_mask_threshold: float = 0.5
 
 
 @dataclass
@@ -78,7 +97,9 @@ class OCRConfig:
 
 @dataclass
 class TireVisionConfig:
-    segmentation: SegmentationConfig = SegmentationConfig()
-    spikes: SpikePipelineConfig = SpikePipelineConfig()
-    depth: DepthEstimatorConfig = DepthEstimatorConfig()
-    ocr: OCRConfig = OCRConfig()
+    segmentation = SegmentationConfig()
+    spikes = SpikePipelineConfig()
+    depth = DepthEstimatorConfig()
+    tire_detector = TireDetectorConfig()
+    tire_unwrapper = TireUnwrapperConfig()
+    ocr = OCRConfig()
