@@ -77,11 +77,15 @@ class TireUnwrapperConfig:
     crop_enlarge_factor: float = 1.1
     polar_angle_steps: int = 360
     polar_flags: int = cv2.WARP_POLAR_LINEAR | cv2.WARP_FILL_OUTLIERS
-    perspective_margin: int = 10 
-    clahe_clip_limit: float = 2.0
+    perspective_margin: int = 10
+    clahe_mode: Literal["disabled", "luminance", "colors", "black-and-white"] = (
+        "black-and-white"
+    )
+    clahe_clip_limit: float = 5.0
     clahe_tile_grid_size: Tuple[int, int] = (8, 8)
     cut_strip: bool = True
     cut_mask_threshold: float = 0.5
+    concat_strip: bool = True
 
 
 @dataclass

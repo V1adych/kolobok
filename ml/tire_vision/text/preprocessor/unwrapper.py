@@ -13,6 +13,41 @@ class TireUnwrapper:
     def __init__(self, config: TireUnwrapperConfig):
         self.config = config
 
+        self.clahe = cv2.createCLAHE(
+            clipLimit=self.config.clahe_clip_limit,
+            tileGridSize=self.config.clahe_tile_grid_size,
+        )
+
+        self.clahe_map = {
+            "disabled": lambda x: x,
+            "luminance": self._clahe_luminance,
+            "colors": self._clahe_colors,
+            "black-and-white": self._clahe_black_and_white,
+        }
+
+        self.clahe_fn = self.clahe_map[self.config.clahe_mode]
+
+    def _clahe_luminance(self, image: np.ndarray):
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        l = self.clahe.apply(l)
+        merged = cv2.merge((l, a, b))
+        result = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+        return result
+
+    def _clahe_colors(self, image: np.ndarray):
+        channels = cv2.split(image)
+        channels = [self.clahe.apply(c) for c in channels]
+
+        result = cv2.merge(channels)
+        return result
+
+    def _clahe_black_and_white(self, image: np.ndarray):
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        result_single_channel = self.clahe.apply(gray)
+        result = cv2.cvtColor(result_single_channel, cv2.COLOR_GRAY2BGR)
+        return result
+
     def _get_tire_center_and_radius(self, polygon: np.ndarray):
         """
         Compute the center and radius of the minimal enclosing circle for the tire polygon.
@@ -176,6 +211,15 @@ class TireUnwrapper:
 
         return mask
 
+    def _concat_strip(self, image: np.ndarray):
+        _, w, c = image.shape
+        strip_slide = np.concatenate([image[:, w // 2 :], image[:, : w // 2]], axis=1)
+
+        border = np.zeros((5, w, c), dtype=image.dtype)
+        result = np.concatenate([image, border, strip_slide], axis=0)
+
+        return result
+
     def get_unwrapped_tire(
         self, image: np.ndarray, polygon_tire: np.ndarray, polygon_rim: np.ndarray
     ):
@@ -211,6 +255,9 @@ class TireUnwrapper:
 
         polar = self._unwrap_polar_tire(crop, mask, new_center, radius_tire, radius_rim)
 
-        enhanced = self._apply_clahe(polar)
+        if self.config.concat_strip:
+            polar = self._concat_strip(polar)
+
+        enhanced = self.clahe_fn(polar)
 
         return enhanced
