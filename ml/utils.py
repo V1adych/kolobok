@@ -36,4 +36,6 @@ def add_annotations(image: np.ndarray, annotations: list[dict[str, Any]]) -> np.
             image_bgr, class_name, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2
         )
 
-    return image_bgr
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+
+    return image_rgb

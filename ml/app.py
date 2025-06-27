@@ -1,7 +1,6 @@
 import os
 import base64
 import io
-import random
 
 from fastapi import FastAPI, HTTPException, Depends, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -9,8 +8,16 @@ from pydantic import BaseModel
 from PIL import Image, UnidentifiedImageError
 import numpy as np
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 from utils import get_thread_stats, add_annotations, extract_tire_info
 
+
+logger = logging.getLogger("app")
 
 app = FastAPI()
 bearer_scheme = HTTPBearer()
@@ -53,14 +60,21 @@ async def analyze_thread(
     req: ImageRequest,
     token: str = Depends(verify_token),
 ):
+    logger.info("/api/v1/analyze_thread: received request")
     validate_image(req.image)
+
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
+    logger.info("/api/v1/analyze_thread: running thread pipeline")
     result = get_thread_stats(image)
+
     image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
+    logger.info("/api/v1/analyze_thread: thread pipeline completed")
+
     pil_image = Image.fromarray(image_with_annotations)
     buffered = io.BytesIO()
     pil_image.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
     return {
         "thread_depth": result["depth"],
         "spikes": result["spikes"],
@@ -74,22 +88,11 @@ async def extract_information(
     token: str = Depends(verify_token),
 ):
     validate_image(req.image)
+
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
+
+    logger.info("/api/v1/extract_information: running tire information extraction")
     result = extract_tire_info(image)
+    logger.info("/api/v1/extract_information: tire information extraction completed")
+
     return result
-
-
-@app.post("/api/v1/identify_tire")
-async def identify_tire(
-    req: ImageRequest,
-    token: str = Depends(verify_token),
-):
-    validate_image(req.image)
-    marks = ["AllSeason", "SpeedGrip", "EcoTrack"]
-    manufacturers = ["Michelin", "Pirelli", "Goodyear"]
-    diameters = [15, 16, 17, 18, 19]
-    return {
-        "tire_mark": random.choice(marks),
-        "tire_manufacturer": random.choice(manufacturers),
-        "tire_diameter": random.choice(diameters),
-    }
