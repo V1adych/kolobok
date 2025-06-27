@@ -20,7 +20,7 @@ class DepthEstimatorPipeline:
         self.model.eval()
         self.logger = logging.getLogger("depth")
 
-        self.logger.info("Depth Estimator module initialized")
+        self.logger.info("DepthEstimatorPipeline module initialized")
 
     @torch.no_grad()
     def estimate_depth(self, image: torch.Tensor) -> float:

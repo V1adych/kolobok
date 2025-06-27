@@ -166,7 +166,7 @@ class SegmentationInferencer:
         self.model.eval()
         self.model.to(self.device)
 
-        self.logger.info("SAN module initialized")
+        self.logger.info("SegmentationInferencer module initialized")
 
     @torch.no_grad()
     def forward(self, img: torch.Tensor) -> torch.Tensor:

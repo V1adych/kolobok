@@ -8,12 +8,17 @@ import io
 
 from tire_vision.config import OCRConfig
 
+import logging
+
 
 class TireOCR:
     """OCR class for extracting tire information from images."""
 
     def __init__(self, config: OCRConfig):
         self.config = config
+
+        self.logger = logging.getLogger("ocr")
+        self.logger.info("TireOCR module initialized")
 
     def extract_tire_info(self, image: np.ndarray) -> Dict[str, Optional[str]]:
         """
@@ -51,8 +56,11 @@ class TireOCR:
             ):
                 result += str(event)
 
+            self.logger.info(f"OCR result: {result}")
+
             try:
                 tire_info = json.loads(result.strip())
+                self.logger.info(f"Parsed OCR result: {tire_info}")
 
                 return {
                     "manufacturer": tire_info.get("manufacturer"),
@@ -61,8 +69,13 @@ class TireOCR:
                 }
 
             except json.JSONDecodeError:
+                self.logger.info(
+                    f"JSONDecodeError: Failed to parse OCR result {result}"
+                )
+                self.logger.info(f"Falling back to default values")
                 return {"manufacturer": None, "model": None, "tire_size_string": None}
 
         except Exception as e:
-            print(f"Error during OCR processing: {e}")
+            self.logger.info(f"Error during OCR processing: {e}")
+            self.logger.info(f"Falling back to default values")
             return {"manufacturer": None, "model": None, "tire_size_string": None}
