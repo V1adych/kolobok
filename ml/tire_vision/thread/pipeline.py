@@ -6,15 +6,23 @@ import numpy as np
 from tire_vision.thread.segmentation.segmentator import SegmentationInferencer
 from tire_vision.thread.spikes.pipeline import SpikePipeline
 from tire_vision.thread.depth.pipeline import DepthEstimatorPipeline
-from tire_vision.config import TireVisionConfig
+from tire_vision.config import (
+    SegmentationConfig,
+    SpikePipelineConfig,
+    DepthEstimatorConfig,
+)
 
 
-class TireVisionPipeline:
-    def __init__(self, config: TireVisionConfig):
-        self.config = config
-        self.segmentator = SegmentationInferencer(config.segmentation)
-        self.spike_pipeline = SpikePipeline(config.spikes)
-        self.depth_pipeline = DepthEstimatorPipeline(config.depth)
+class TireThreadPipeline:
+    def __init__(
+        self,
+        segmentation_config: SegmentationConfig,
+        spikes_config: SpikePipelineConfig,
+        depth_config: DepthEstimatorConfig,
+    ):
+        self.segmentator = SegmentationInferencer(segmentation_config)
+        self.spike_pipeline = SpikePipeline(spikes_config)
+        self.depth_pipeline = DepthEstimatorPipeline(depth_config)
 
     def __call__(self, image: torch.Tensor) -> Dict[str, Any]:
         cropped_image = self.segmentator.crop_tire(image)

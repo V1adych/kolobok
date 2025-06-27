@@ -4,25 +4,33 @@ import numpy as np
 import cv2
 import torch
 
-from tire_vision.thread.pipeline import TireVisionPipeline
-from tire_vision.text import TireOCR
+from tire_vision.thread.pipeline import TireThreadPipeline
+from tire_vision.text.pipeline import TireAnnotationPipeline
 from tire_vision.config import TireVisionConfig, CLASS_MAPPING, CLASS_COLORS
 
 
 cfg = TireVisionConfig()
-pipeline = TireVisionPipeline(cfg)
-ocr_pipeline = TireOCR(cfg.ocr)
+thread_pipeline = TireThreadPipeline(
+    segmentation_config=cfg.segmentation,
+    spikes_config=cfg.spikes,
+    depth_config=cfg.depth,
+)
+annotation_pipeline = TireAnnotationPipeline(
+    detector_config=cfg.tire_detector,
+    unwrapper_config=cfg.tire_unwrapper,
+    ocr_config=cfg.ocr,
+)
 
 
 def get_thread_stats(image: np.ndarray) -> dict[str, Any]:
     image = torch.from_numpy(image).permute(2, 0, 1)
-    result = pipeline(image)
+    result = thread_pipeline(image)
     return result
 
 
 def extract_tire_info(image: np.ndarray) -> dict[str, Any]:
     """Extract tire information using OCR."""
-    return ocr_pipeline.extract_tire_info(image)
+    return annotation_pipeline(image)
 
 
 def add_annotations(image: np.ndarray, annotations: list[dict[str, Any]]) -> np.ndarray:
