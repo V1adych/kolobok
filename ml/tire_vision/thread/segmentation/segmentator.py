@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 import os
 from typing import Literal
+import time
 
 import torch
 from torchvision.transforms import functional as VF, InterpolationMode
@@ -15,6 +16,8 @@ from huggingface_hub import hf_hub_download, login
 
 from tire_vision.thread.segmentation.coco_stuff import COCO_CATEGORIES
 from tire_vision.config import SegmentationConfig
+
+import logging
 
 
 cur_dir = Path(__file__)
@@ -152,6 +155,7 @@ class SegmentationInferencer:
         self.vocab_aug_mode = config.vocab_aug_mode
         self.segmentation_mode = config.segmentation_mode
         self._augment_vocabulary()
+        self.logger = logging.getLogger("san")
 
         cfg = setup(str(CFG_PATH), device=self.device)
         self.model = DefaultTrainer.build_model(cfg)
@@ -162,8 +166,12 @@ class SegmentationInferencer:
         self.model.eval()
         self.model.to(self.device)
 
+        self.logger.info("SegmentationInferencer module initialized")
+
     @torch.no_grad()
     def forward(self, img: torch.Tensor) -> torch.Tensor:
+        self.logger.info("Running SAN forward pass")
+        start_time = time.perf_counter()
         *_, h, w = img.shape
 
         if h > w:
@@ -174,12 +182,17 @@ class SegmentationInferencer:
             img_resized = VF.resize(
                 img, (int(640 * h / w), 640), interpolation=InterpolationMode.BICUBIC
             )
+        self.logger.info(
+            f"Original shape: {img.shape}, Resized shape: {img_resized.shape}"
+        )
 
+        self.logger.info("Inferencing model")
         result = self.model([{"image": img_resized, "vocabulary": self.vocab_aug}])
 
         seg = result[0]["sem_seg"]
 
         if self.segmentation_mode == "efficient":
+            self.logger.info("Getting segmentation mask in 'efficient' mode")
             seg = torch.where(torch.argmax(seg, dim=0, keepdim=True) == 0, 1, 0).to(
                 torch.uint8
             )
@@ -188,6 +201,7 @@ class SegmentationInferencer:
             ).squeeze(0)
 
         elif self.segmentation_mode == "accurate":
+            self.logger.info("Getting segmentation mask in 'accurate' mode")
             seg = (
                 torch.where(
                     torch.argmax(
@@ -206,6 +220,9 @@ class SegmentationInferencer:
             raise ValueError(
                 "segmentation_mode must be one of ['accurate', 'efficient']"
             )
+
+        latency = time.perf_counter() - start_time
+        self.logger.info(f"SAN forward pass completed in {latency:.4f} seconds")
 
         return seg
 

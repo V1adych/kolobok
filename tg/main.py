@@ -26,6 +26,7 @@ APP_URL = "ml:8000"
 
 TREAD_ANALYSIS_URL = f"http://{APP_URL}/api/v1/analyze_thread"
 TIRE_READING_URL = f"http://{APP_URL}/api/v1/identify_tire"
+TIRE_INFO_EXTRACTION_URL = f"http://{APP_URL}/api/v1/extract_information"
 
 # Enable logging
 logging.basicConfig(
@@ -56,8 +57,12 @@ def build_main_menu() -> InlineKeyboardMarkup:
     """Return the main menu keyboard."""
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("Глубина протектора и анализ шипов", callback_data=CB_TREAD)],
-            # [InlineKeyboardButton("Марка и модель шины", callback_data=CB_SIDE)]
+            [
+                InlineKeyboardButton(
+                    "Глубина протектора и анализ шипов", callback_data=CB_TREAD
+                )
+            ],
+            [InlineKeyboardButton("Марка и модель шины", callback_data=CB_SIDE)],
         ]
     )
 
@@ -81,18 +86,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Введите пароль:")
     return PASSWORD
 
+
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     token = update.message.text
-    true_token = os.environ["API_TOKEN"] 
+    true_token = os.environ["API_TOKEN"]
     if token != true_token:
         return await incorrect_password(update, context)
     else:
         context.user_data["token"] = f"Bearer {token}"
         return await send_main_menu(update, context)
-    
+
+
 async def incorrect_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Неверный пароль, попробуйте ещё раз:")
     return PASSWORD
+
 
 async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle main‐menu button presses."""
@@ -128,22 +136,23 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
     header = {"Authorization": context.user_data["token"]}
-    payload = {"image": b64, "token": context.user_data["token"]}
+    payload = {"image": b64}
 
-    resp = requests.post(TIRE_READING_URL, headers=header, json=payload)
+    resp = requests.post(TIRE_INFO_EXTRACTION_URL, headers=header, json=payload)
     resp.raise_for_status()
     print(resp.json())
 
-    tire_mark = resp.json()["tire_mark"]
-    tire_manufacturer = resp.json()["tire_manufacturer"]
-    tire_diameter = resp.json()["tire_diameter"]
+    data = resp.json()
+    manufacturer = data.get("manufacturer") or "Не определено"
+    model = data.get("model") or "Не определено"
+    tire_size = data.get("tire_size_string") or "Не определено"
 
     await update.message.reply_text(
-        f"Марка: {tire_mark}\nМодель: {tire_manufacturer}\nДиаметр: {tire_diameter}",
+        f"Производитель: {manufacturer}\nМодель: {model}\nРазмер: {tire_size}",
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("OK", callback_data=CB_SIDE_OK)],
-                #[InlineKeyboardButton("Свой вариант", callback_data=CB_SIDE_CUSTOM)],
+                [InlineKeyboardButton("Свой вариант", callback_data=CB_SIDE_CUSTOM)],
             ]
         ),
     )
@@ -161,7 +170,8 @@ async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     # CB_SIDE_CUSTOM
     await context.bot.send_message(
-        query.message.chat_id, "Введите свой вариант марки, модели и диаметра шины:"
+        query.message.chat_id,
+        "Введите свой вариант производителя, модели и размера шины:",
     )
     return SIDE_CUSTOM
 
@@ -193,7 +203,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     data = resp.json()
 
-    #logger.log(msg=f"keys: {data.keys()}")
+    # logger.log(msg=f"keys: {data.keys()}")
 
     tread_depth = data["thread_depth"]
     spikes = data["spikes"]
@@ -216,7 +226,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("OK", callback_data=CB_TREAD_OK)],
-                #[InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
+                # [InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
             ]
         ),
     )

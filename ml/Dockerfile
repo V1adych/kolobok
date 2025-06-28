@@ -8,7 +8,8 @@ COPY external/ external/
 
 RUN pip install torch torchvision
 RUN pip install -r requirements.txt
-RUN pip install pillow==9.5.0
+RUN pip install inference
+RUN pip install pillow==9.5.0 numpy==1.26
 
 COPY . .
 
