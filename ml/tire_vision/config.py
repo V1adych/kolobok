@@ -18,7 +18,7 @@ CLASS_MAPPING = {
 
 CLASS_COLORS = {
     "good": (0, 255, 0),
-    "bad": (0, 0, 255),
+    "bad": (255, 0, 0),
 }
 
 @dataclass
