@@ -16,7 +16,6 @@ logging.basicConfig(
 )
 
 from utils import get_thread_stats, add_annotations, extract_tire_info
-from tire_vision.storage import get_image_bytes
 
 
 logger = logging.getLogger("app")
@@ -98,14 +97,3 @@ async def extract_information(
     logger.info("/api/v1/extract_information: tire information extraction completed")
 
     return result
-
-
-@app.get("/api/v1/image/{image_id}")
-async def get_image(image_id: str):
-    """Return a stored debug image by its id."""
-    try:
-        img_bytes = get_image_bytes(image_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    return Response(content=img_bytes, media_type="image/png")
