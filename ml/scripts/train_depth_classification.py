@@ -2,7 +2,10 @@ from pathlib import Path
 from typing import Tuple, Optional, Iterable, Callable, List, Dict
 from collections import OrderedDict
 from copy import deepcopy
+from itertools import product
+from dataclasses import dataclass
 
+import tyro
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,22 +22,14 @@ from torchvision.models import (
     Swin_S_Weights,
     efficientnet_b7,
     EfficientNet_B7_Weights,
-    efficientnet_b3,
-    EfficientNet_B3_Weights,
     swin_v2_t,
     Swin_V2_T_Weights,
     swin_v2_s,
     Swin_V2_S_Weights,
-    vit_b_16,
-    ViT_B_16_Weights,
     densenet201,
     DenseNet201_Weights,
     googlenet,
     GoogLeNet_Weights,
-    convnext_small,
-    ConvNeXt_Small_Weights,
-    regnet_y_8gf,
-    RegNet_Y_8GF_Weights,
 )
 from torchvision.models.swin_transformer import Permute
 from torchvision.io import read_image
@@ -43,34 +38,38 @@ from torchvision.ops import FeaturePyramidNetwork
 
 from tqdm import tqdm
 
-MIN_DEPTH = 1.0
-MAX_DEPTH = 10.0
-STEP_SIZE = 0.1
+
+DATA_ROOT = Path("data/thread/depth")
+
+TRAIN_DIR = DATA_ROOT / "orig_train"
+TEST_DIR = DATA_ROOT / "orig_test"
+SYNTHETIC_DIR = DATA_ROOT / "synthetic"
+
+CKPT_SAVE_DIR = Path("checkpoints/depth_classification")
+
+CKPT_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Classification parameters
+MIN_DEPTH = 1.5
+MAX_DEPTH = 9.5
+STEP_SIZE = 0.25
 NUM_CLASSES = int((MAX_DEPTH - MIN_DEPTH) / STEP_SIZE) + 1
 
-data_root = Path("./data/dataset_crop")
-
-df = pd.read_csv(data_root / "thread_depths.csv")
-df_train, df_val = train_test_split(df, test_size=0.2, random_state=42)
 
 class ThreadDataset(Dataset):
     def __init__(
-        self,
-        data: pd.DataFrame,
-        data_root_dir: str,
-        transform: Optional[nn.Module] = None,
+        self, data_root_dirs: List[str], transform: Optional[nn.Module] = None
     ):
-        self.data = data
-        self.data_root_dir = Path(data_root_dir)
+        self.data_root_dirs = [Path(data_root_dir) for data_root_dir in data_root_dirs]
+
         self.image_paths = []
         self.labels = []
-        for _, row in self.data.iterrows():
-            image_path = self.data_root_dir / row["path"]
-            if not image_path.exists():
-                print(f"Warning: {image_path} does not exist")
-                continue
-            self.image_paths.append(self.data_root_dir / row["path"])
-            self.labels.append(row["label"])
+        for data_root_dir in self.data_root_dirs:
+            for path in data_root_dir.iterdir():
+                image_path = str(path)
+                label = float(path.stem.split("_")[1])
+                self.image_paths.append(image_path)
+                self.labels.append(label)
 
         self.transform = transform
 
@@ -87,12 +86,11 @@ class ThreadDataset(Dataset):
         return image, label
 
 
-
 def discretize_depth(
     depth: torch.Tensor,
-    min_depth: float = 1.0,
-    max_depth: float = 10.0,
-    step: float = 0.1,
+    min_depth: float = MIN_DEPTH,
+    max_depth: float = MAX_DEPTH,
+    step: float = STEP_SIZE,
 ) -> torch.Tensor:
     n_classes = int((max_depth - min_depth) / step) + 1
     depth_bins = torch.linspace(min_depth, max_depth, n_classes, device=depth.device)
@@ -101,187 +99,102 @@ def discretize_depth(
 
     return torch.bucketize(depth, depth_bins)
 
+
 def undiscritize_depth(
     depth: torch.Tensor,
-    min_depth: float = 1.0,
-    max_depth: float = 10.0,
-    step: float = 0.1,
+    min_depth: float = MIN_DEPTH,
+    max_depth: float = MAX_DEPTH,
+    step: float = STEP_SIZE,
 ) -> torch.Tensor:
     n_classes = int((max_depth - min_depth) / step) + 1
     return depth.to(torch.float32) * step + min_depth
 
-image_path = data_root / df.sample().iloc[0, 0]
-img = read_image(image_path)
-
 
 class Clahe(nn.Module):
-    def __init__(self, clip_limit: float = 2.0):
+    def __init__(self, clip_limit: float = 10.0):
         super().__init__()
         self.clip_limit = clip_limit
         self.clahe = cv2.createCLAHE(clipLimit=clip_limit)
 
     def _apply_clahe(self, img: np.ndarray) -> np.ndarray:
-        result = []
-        for channel in img:
-            result.append(self.clahe.apply(channel))
-
-        return np.stack(result, axis=0)
+        lab_img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+        lab_img[:, :, 0] = self.clahe.apply(lab_img[:, :, 0])
+        return cv2.cvtColor(lab_img, cv2.COLOR_LAB2RGB)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         device = x.device
-        x_npy = x.cpu().numpy()
-        x_clahe = self._apply_clahe(x_npy)
+        x_npy = x.cpu().numpy().transpose(1, 2, 0)
+        x_clahe = self._apply_clahe(x_npy).transpose(2, 0, 1)
 
         return torch.tensor(x_clahe, device=device)
 
-
-transform = transforms.Compose(
-    [
-        # Clahe(),
-        lambda x: x / 255,
-        transforms.Resize(
-            (512, 512), interpolation=transforms.InterpolationMode.BICUBIC
-        ),
-    ]
-)
-
-transform_aug = transforms.Compose(
-    [
-        transform,
-        # transforms.ToPILImage(),
-        # transforms.RandAugment(
-        #     num_ops=3, interpolation=transforms.InterpolationMode.BICUBIC
-        # ),
-        # transforms.ToTensor(),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        # transforms.RandomAffine(15, (0.05, 0.05), fill=255),
-    ]
-)
-
-img = transform_aug(img)
-
-# plt.imshow(img.permute(1, 2, 0))
-# plt.axis("off")
-# plt.show()
-
-train_dataset = ThreadDataset(df_train, data_root, transform_aug)
-val_dataset = ThreadDataset(df_val, data_root, transform)
-
-train_loader = DataLoader(train_dataset, shuffle=True, num_workers=4, batch_size=4)
-val_loader = DataLoader(val_dataset, shuffle=False, num_workers=4, batch_size=4)
-
-models = {}
-
-# model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-# model.fc = nn.Sequential(nn.Linear(2048, 512), nn.ReLU(), nn.Linear(512, 1))
-
-models["swin_v2"] = swin_v2_s(weights=Swin_V2_S_Weights.IMAGENET1K_V1)
-models["swin_v2"].head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, NUM_CLASSES))
-
-# model = swin_s(weights=Swin_S_Weights.IMAGENET1K_V1)
-# model.head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
-
-models["effnet_b3"] = efficientnet_b3(weights=EfficientNet_B3_Weights.IMAGENET1K_V1)
-models["effnet_b3"].classifier = nn.Sequential(nn.Linear(1536, 512), nn.SiLU(), nn.Linear(512, NUM_CLASSES))
-
-models["effnet_b7"] = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
-models["effnet_b7"].classifier = nn.Sequential(nn.Linear(2560, 512), nn.SiLU(), nn.Linear(512, NUM_CLASSES))
-
-# model = swin_v2_t(weights=Swin_V2_T_Weights.IMAGENET1K_V1)
-# model.features[0][0] = nn.Conv2d(in_channels=3, out_channels=96, kernel_size=(5, 5), stride=(2, 2))
-# model.head = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
-
-# model = vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_SWAG_LINEAR_V1)
-# model.heads = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
-
-models["densenet201"] = densenet201(weights=DenseNet201_Weights.IMAGENET1K_V1)
-models["densenet201"].classifier = nn.Sequential(nn.Linear(1920, 512), nn.ReLU(), nn.Linear(512, NUM_CLASSES))
- 
-models["googlenet"] = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
-models["googlenet"].fc = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, 1))
-
-# model = convnext_small(weights=ConvNeXt_Small_Weights.IMAGENET1K_V1)
-# model.classifier[-1] = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
-
-# model = regnet_y_8gf(weights=RegNet_Y_8GF_Weights.IMAGENET1K_V2)
-# model.fc = nn.Sequential(nn.Linear(2016, 512), nn.ReLU(), nn.Linear(512, 1))
-
-# model = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
-# model.fc = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, NUM_CLASSES))
 
 def train_fn(
     model: nn.Module,
     train_loader: DataLoader,
     val_loader: DataLoader,
     num_epochs: int = 10,
+    start_lr: float = 1e-4,
+    use_scheduler: bool = False,
+    gradient_clip: Optional[float] = None,
 ):
-    torch.cuda.reset_peak_memory_stats()
-    #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
     best_val_metric = -torch.inf
     best_model = deepcopy(model).cpu()
-    #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
     criterion = F.cross_entropy
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=start_lr)
 
-    #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
-    #print('---')
+    if use_scheduler:
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=num_epochs + 1
+        )
+
     for epoch in range(num_epochs):
-        torch.cuda.reset_peak_memory_stats()
         model.train()
         optimizer.zero_grad()
         running_loss = 0.0
-        for images, labels in tqdm(
+        train_pbar = tqdm(
             train_loader,
-            desc=f"Epoch {epoch + 1} Training",
+            desc=f"Epoch [{epoch + 1}/{num_epochs}] Training",
             total=len(train_loader),
-        ):
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
+        )
+        for images, labels in train_pbar:
             images = images.to(device)
-            #print(images.shape)
             labels = labels.to(device, torch.float32)
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
             labels_discretized = discretize_depth(
                 labels, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH, step=STEP_SIZE
             )
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
-            optimizer.zero_grad()
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
-            logits = model(images)
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
-            loss = criterion(logits, labels_discretized)
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
-            loss.backward()
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
 
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.zero_grad()
+
+            logits = model(images)
+            loss = criterion(logits, labels_discretized)
+            loss.backward()
+
+            if gradient_clip is not None:
+                nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
 
             optimizer.step()
-            #print(torch.cuda.memory_allocated() / (1024 * 1024 * 1024))
 
             running_loss += loss.item()
-
-        print(
-            f"Epoch [{epoch + 1}/{num_epochs}], Loss: {running_loss / len(train_loader):.4f}"
-        )
-        #print(torch.cuda.memory_allocated())
+            train_pbar.set_postfix(loss=running_loss / (train_pbar.n + 1))
 
         model.eval()
 
         residuals = []
+        eval_pbar = tqdm(
+            val_loader,
+            desc=f"Epoch [{epoch + 1}/{num_epochs}] Evalutaion",
+            total=len(val_loader),
+        )
         with torch.no_grad():
-            for images, labels in tqdm(
-                val_loader, desc=f"Epoch {epoch + 1} Evalutaion"
-            ):
+            for images, labels in eval_pbar:
                 images = images.to(device)
                 labels = labels.to(device)
 
                 logits = model(images)
-
                 preds = torch.argmax(logits, dim=1).to(torch.float32)
                 preds = undiscritize_depth(
                     preds, min_depth=MIN_DEPTH, max_depth=MAX_DEPTH, step=STEP_SIZE
@@ -290,27 +203,158 @@ def train_fn(
 
         residuals = torch.tensor(residuals)
         val_metric = torch.mean(torch.where(residuals <= 1, 1.0, 0.0))
-        print(
-            f"Validation MAE: {torch.mean(residuals):.4f}, "
-            + f"Fraction of errors <= 1: {val_metric:.4f}, "
-            + f"0.9th quantile: {torch.quantile(residuals, 0.9):.4f}"
+
+        tqdm.write(
+            f"Epoch [{epoch + 1}/{num_epochs}], "
+            + f"Validation MAE: {torch.mean(residuals).item():.4f}, "
+            + f"Fraction of errors <= 1: {val_metric.item():.4f}, "
+            + f"0.9th quantile: {torch.quantile(residuals, 0.9).item():.4f}"
         )
 
         if val_metric > best_val_metric:
             best_val_metric = val_metric
             best_model = deepcopy(model).cpu()
 
+        if use_scheduler:
+            scheduler.step()
+
     model.cpu()
     return best_model, best_val_metric
 
-trained_models: Dict[str, nn.Module] = {}
-for model_name, model in models.items():
-    print(f"TRAINING {model_name}")
-    model, metric = train_fn(
-        model,
-        train_loader,
-        val_loader,
-        num_epochs=20,
+
+def get_model(model_name: str) -> nn.Module:
+    if model_name == "swin_v2_s":
+        model = swin_v2_s(weights=Swin_V2_S_Weights.IMAGENET1K_V1)
+        model.head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, NUM_CLASSES))
+    elif model_name == "swin_s":
+        model = swin_s(weights=Swin_S_Weights.IMAGENET1K_V1)
+        model.head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, NUM_CLASSES))
+    elif model_name == "effnet_b7":
+        model = efficientnet_b7(weights=EfficientNet_B7_Weights.IMAGENET1K_V1)
+        model.classifier = nn.Sequential(
+            nn.Linear(2560, 512), nn.SiLU(), nn.Linear(512, NUM_CLASSES)
+        )
+    elif model_name == "swin_v2_t":
+        model = swin_v2_t(weights=Swin_V2_T_Weights.IMAGENET1K_V1)
+        model.features[0][0] = nn.Conv2d(
+            in_channels=3, out_channels=96, kernel_size=(5, 5), stride=(2, 2)
+        )
+        model.head = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, NUM_CLASSES))
+    elif model_name == "densenet201":
+        model = densenet201(weights=DenseNet201_Weights.IMAGENET1K_V1)
+        model.classifier = nn.Sequential(
+            nn.Linear(1920, 512), nn.ReLU(), nn.Linear(512, NUM_CLASSES)
+        )
+    elif model_name == "googlenet":
+        model = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
+        model.fc = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, NUM_CLASSES))
+    else:
+        raise ValueError(f"Model {model_name} not found")
+    return model
+
+
+@dataclass
+class Config:
+    model_name: str
+    gradient_clip: Optional[float] = None
+    start_lr: float = 1e-4
+    use_scheduler: bool = False
+    with_synthetic: bool = False
+    with_clahe: bool = False
+    with_aug: bool = False
+    num_epochs: int = 25
+    save_dir: str = "checkpoints/depth_classification"
+
+
+def main():
+    config = tyro.cli(Config)
+
+    base_transform = transforms.Compose(
+        [
+            lambda x: x / 255,
+            transforms.Resize(
+                (512, 512), interpolation=transforms.InterpolationMode.BICUBIC
+            ),
+        ]
     )
-    print()
-    torch.save(model.state_dict(), f"{model_name}_{metric:.4f}.pt")
+
+    def clahe_transform(transform: nn.Module):
+        return transforms.Compose(
+            [
+                Clahe(),
+                transform,
+            ]
+        )
+
+    def aug_transform(transform: nn.Module):
+        return transforms.Compose(
+            [
+                transform,
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.RandomAffine(
+                    degrees=10,
+                    translate=(0.1, 0.1),
+                    scale=(0.9, 1.1),
+                    shear=10,
+                ),
+            ]
+        )
+
+    model = get_model(config.model_name)
+    train_transform = base_transform
+    val_transform = base_transform
+
+    if config.with_aug:
+        train_transform = aug_transform(train_transform)
+    if config.with_clahe:
+        train_transform = clahe_transform(train_transform)
+        val_transform = clahe_transform(val_transform)
+
+    train_dataset = ThreadDataset(
+        [TRAIN_DIR, SYNTHETIC_DIR] if config.with_synthetic else [TRAIN_DIR],
+        transform=train_transform,
+    )
+    val_dataset = ThreadDataset(
+        [TEST_DIR],
+        transform=val_transform,
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=8)
+    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=8)
+
+    best_model, score = train_fn(
+        model, 
+        train_loader, 
+        val_loader, 
+        config.num_epochs,
+        config.start_lr,
+        config.use_scheduler,
+        config.gradient_clip
+    )
+
+    ckpt_name = f"{config.model_name}_{score:.4f}"
+    if config.with_synthetic:
+        ckpt_name += "_synthetic"
+    if config.with_aug:
+        ckpt_name += "_aug"
+    if config.with_clahe:
+        ckpt_name += "_clahe"
+    if config.gradient_clip is not None:
+        ckpt_name += f"_clip{config.gradient_clip}"
+    if config.start_lr != 1e-4:
+        ckpt_name += f"_lr{config.start_lr}"
+    if config.use_scheduler:
+        ckpt_name += "_scheduler"
+
+    ckpt_name += f"_{config.num_epochs}e"
+    ckpt_name += f".pt"
+
+    save_path = Path(config.save_dir) / ckpt_name
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    torch.save(best_model.state_dict(), save_path)
+
+
+if __name__ == "__main__":
+    main()

@@ -28,8 +28,9 @@ class SegmentationConfig:
     device: str = DEVICE
     target: str = "wheel-tire-thread"
     vocab_aug_mode: Literal["COCO-stuff", "COCO-all", "none"] = "COCO-stuff"
-    segmentation_mode: Literal["accurate", "efficient"] = "accurate"
+    segmentation_mode: Literal["accurate", "efficient"] = "efficient"
     padding_frac: float = 0.01
+    min_tire_pixels: int = 96
 
 
 @dataclass

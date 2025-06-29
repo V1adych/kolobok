@@ -66,6 +66,8 @@ async def analyze_thread(
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
     logger.info("/api/v1/analyze_thread: running thread pipeline")
     result = get_thread_stats(image)
+    if result["success"] == 0:
+        return result
 
     image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
     logger.info("/api/v1/analyze_thread: thread pipeline completed")
@@ -76,6 +78,7 @@ async def analyze_thread(
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
     return {
+        "success": 1,
         "thread_depth": result["depth"],
         "spikes": result["spikes"],
         "image": img_str,
