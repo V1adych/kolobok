@@ -1,5 +1,6 @@
 from typing import Dict, Any
 import time
+from traceback import format_exc
 
 import numpy as np
 
@@ -33,16 +34,24 @@ class TireAnnotationPipeline:
         self.logger.info("Running TireAnnotationPipeline")
         start_time = time.perf_counter()
 
-        self.logger.info("Running TireDetector")
-        detection_result = self.detector.detect(image)
-        self.logger.info(f"TireDetector result keys: {detection_result.keys()}")
-
+        unwrapped_image = None
         self.logger.info("Running TireUnwrapper")
-        unwrapped_image = self.unwrapper.get_unwrapped_tire(
-            image,
-            detection_result[self.detector.tire_class_name],
-            detection_result[self.detector.rim_class_name],
-        )
+        try:
+            self.logger.info("Running TireDetector")
+            detection_result = self.detector.detect(image)
+            self.logger.info(f"TireDetector result keys: {detection_result.keys()}")
+            unwrapped_image = self.unwrapper.get_unwrapped_tire(
+                image,
+                detection_result[self.detector.tire_class_name],
+                detection_result[self.detector.rim_class_name],
+            )
+        except Exception:
+            self.logger.error(format_exc())
+            self.logger.error(
+                "Error running TireUnwrapper. Falling back to original image"
+            )
+            unwrapped_image = image
+
         self.logger.info(
             f"Original image shape: {image.shape}, unwrapped image shape: {unwrapped_image.shape}"
         )

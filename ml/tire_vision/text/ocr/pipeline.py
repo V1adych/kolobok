@@ -5,6 +5,7 @@ from PIL import Image
 import numpy as np
 import replicate
 import io
+from traceback import format_exc
 
 from tire_vision.config import OCRConfig
 
@@ -30,7 +31,21 @@ class TireOCR:
         Returns:
             Dictionary with manufacturer, model, and tire_size_string fields
         """
+        file_input = self._prepare_image(image)
 
+        try:
+            result = self._get_llm_response(file_input)
+            tire_info = self._parse_llm_response(result)
+            return tire_info
+        except Exception:
+            self.logger.error(format_exc())
+            self.logger.error(
+                "Error during OCR processing. Falling back to default values"
+            )
+            return self._get_default_response()
+
+    def _prepare_image(self, image: np.ndarray) -> str:
+        """Prepare image for OCR processing."""
         pil_image = Image.fromarray(image)
 
         buffer = io.BytesIO()
@@ -38,44 +53,44 @@ class TireOCR:
         buffer.seek(0)
 
         b64_data = base64.b64encode(buffer.read()).decode("utf-8")
-        file_input = f"data:application/octet-stream;base64,{b64_data}"
+        return f"data:application/octet-stream;base64,{b64_data}"
 
+    def _get_llm_response(self, file_input: str) -> str:
+        """Get response from LLM model."""
+        result = ""
+        for event in replicate.stream(
+            self.config.model_name,
+            input={
+                "top_p": self.config.top_p,
+                "prompt": self.config.prompt,
+                "image_input": [file_input],
+                "temperature": self.config.temperature,
+                "presence_penalty": self.config.presence_penalty,
+                "frequency_penalty": self.config.frequency_penalty,
+                "max_completion_tokens": self.config.max_completion_tokens,
+            },
+        ):
+            result += str(event)
+
+        self.logger.info(f"LLM response: {result}")
+        return result
+
+    def _parse_llm_response(self, result: str) -> Dict[str, Optional[str]]:
+        """Parse LLM response into structured tire information."""
         try:
-            result = ""
-            for event in replicate.stream(
-                self.config.model_name,
-                input={
-                    "top_p": self.config.top_p,
-                    "prompt": self.config.prompt,
-                    "image_input": [file_input],
-                    "temperature": self.config.temperature,
-                    "presence_penalty": self.config.presence_penalty,
-                    "frequency_penalty": self.config.frequency_penalty,
-                    "max_completion_tokens": self.config.max_completion_tokens,
-                },
-            ):
-                result += str(event)
+            tire_info = json.loads(result.strip())
+            self.logger.info(f"Parsed OCR result: {tire_info}")
 
-            self.logger.info(f"OCR result: {result}")
+            return {
+                "manufacturer": tire_info.get("manufacturer"),
+                "model": tire_info.get("model"),
+                "tire_size_string": tire_info.get("tire_size_string"),
+            }
+        except json.JSONDecodeError:
+            self.logger.info(f"JSONDecodeError: Failed to parse OCR result {result}")
+            raise
 
-            try:
-                tire_info = json.loads(result.strip())
-                self.logger.info(f"Parsed OCR result: {tire_info}")
-
-                return {
-                    "manufacturer": tire_info.get("manufacturer"),
-                    "model": tire_info.get("model"),
-                    "tire_size_string": tire_info.get("tire_size_string"),
-                }
-
-            except json.JSONDecodeError:
-                self.logger.info(
-                    f"JSONDecodeError: Failed to parse OCR result {result}"
-                )
-                self.logger.info(f"Falling back to default values")
-                return {"manufacturer": None, "model": None, "tire_size_string": None}
-
-        except Exception as e:
-            self.logger.info(f"Error during OCR processing: {e}")
-            self.logger.info(f"Falling back to default values")
-            return {"manufacturer": None, "model": None, "tire_size_string": None}
+    def _get_default_response(self) -> Dict[str, Optional[str]]:
+        """Return default response when processing fails."""
+        self.logger.info("Falling back to default values")
+        return {"manufacturer": None, "model": None, "tire_size_string": None}
