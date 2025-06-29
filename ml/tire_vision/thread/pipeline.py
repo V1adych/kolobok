@@ -12,6 +12,8 @@ from tire_vision.config import (
     DepthEstimatorConfig,
 )
 
+import logging
+
 
 class TireThreadPipeline:
     def __init__(
@@ -26,6 +28,12 @@ class TireThreadPipeline:
 
     def __call__(self, image: torch.Tensor) -> Dict[str, Any]:
         cropped_image = self.segmentator.crop_tire(image)
+        if cropped_image is None:
+            return {
+                "success": 0,
+                "detail": "Tire not found on the image, or it is too small",
+            }
+
         cropped_image = cropped_image.to(torch.float32) / 255
 
         spikes = self.spike_pipeline.detect_spikes(cropped_image)
@@ -37,6 +45,7 @@ class TireThreadPipeline:
         cropped_image = cropped_image.astype(np.uint8)
 
         return {
+            "success": 1,
             "cropped_image": cropped_image,
             "depth": depth,
             "spikes": spikes,

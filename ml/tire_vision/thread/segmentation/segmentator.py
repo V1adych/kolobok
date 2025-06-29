@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 import os
-from typing import Literal
+from typing import Literal, Union
 import time
 
 import torch
@@ -168,6 +168,25 @@ class SegmentationInferencer:
 
         self.logger.info("SegmentationInferencer module initialized")
 
+    @staticmethod
+    def _resize_map(
+        map: torch.Tensor,
+        h: int,
+        w: int,
+        interpolation: Literal["bicubic", "nearest"],
+    ):
+        if interpolation == "bicubic":
+            return VF.resize(map, (h, w), interpolation=InterpolationMode.BICUBIC)
+        elif interpolation == "nearest":
+            return VF.resize(map, (h, w), interpolation=InterpolationMode.NEAREST)
+        else:
+            raise ValueError(f"Invalid interpolation mode: {interpolation}")
+
+    @staticmethod
+    def _get_binary_mask(logits: torch.Tensor):
+        result = torch.where(torch.argmax(logits, dim=0, keepdim=True) == 0, 1, 0)
+        return result.to(torch.uint8)
+
     @torch.no_grad()
     def forward(self, img: torch.Tensor) -> torch.Tensor:
         self.logger.info("Running SAN forward pass")
@@ -193,38 +212,22 @@ class SegmentationInferencer:
 
         if self.segmentation_mode == "efficient":
             self.logger.info("Getting segmentation mask in 'efficient' mode")
-            seg = torch.where(torch.argmax(seg, dim=0, keepdim=True) == 0, 1, 0).to(
-                torch.uint8
-            )
-            seg = VF.resize(
-                seg, (h, w), interpolation=InterpolationMode.NEAREST
-            ).squeeze(0)
+            mask = self._get_binary_mask(seg)
+            mask = self._resize_map(mask, h, w, "nearest").squeeze(0)
 
         elif self.segmentation_mode == "accurate":
             self.logger.info("Getting segmentation mask in 'accurate' mode")
-            seg = (
-                torch.where(
-                    torch.argmax(
-                        VF.resize(seg, (h, w), interpolation=InterpolationMode.BICUBIC),
-                        dim=0,
-                        keepdim=True,
-                    )
-                    == 0,
-                    1,
-                    0,
-                )
-                .to(torch.uint8)
-                .squeeze(0)
-            )
+            seg = self._resize_map(seg, h, w, "bicubic")
+            mask = self._get_binary_mask(seg).squeeze(0)
         else:
             raise ValueError(
-                "segmentation_mode must be one of ['accurate', 'efficient']"
+                "segmentation_˝mode must be one of ['accurate', 'efficient']"
             )
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"SAN forward pass completed in {latency:.4f} seconds")
 
-        return seg
+        return mask
 
     def _augment_vocabulary(self):
         default_voc = [c["name"] for c in COCO_CATEGORIES]
@@ -242,7 +245,7 @@ class SegmentationInferencer:
         else:
             self.vocab_aug = self.vocab
 
-    def crop_tire(self, img: torch.Tensor) -> torch.Tensor:
+    def crop_tire(self, img: torch.Tensor) -> Union[torch.Tensor, None]:
         img = img.to(self.device)
         *_, h, w = img.shape
 
@@ -252,12 +255,23 @@ class SegmentationInferencer:
         )
 
         mask = self.forward(img)
-        img_rembg = img * mask + 255 * (1 - mask)
+        if mask.sum() == 0:
+            self.logger.error("No tire found on the image. Returning None")
+            return None
 
         i, j = torch.where(mask == 1)
 
         min_i, max_i = torch.min(i), torch.max(i)
         min_j, max_j = torch.min(j), torch.max(j)
+
+        if (
+            max_i - min_i < self.config.min_tire_pixels
+            or max_j - min_j < self.config.min_tire_pixels
+        ):
+            self.logger.error("Tire is too small. Returning None")
+            return None
+
+        img_rembg = img * mask + 255 * (1 - mask)
 
         min_i = max(0, min_i - padding[0])
         max_i = min(h, max_i + padding[0])
