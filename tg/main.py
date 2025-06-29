@@ -4,6 +4,9 @@ import requests
 import io
 import os
 from PIL import Image
+# from dotenv import load_dotenv
+
+# load_dotenv()
 
 from telegram import (
     Update,
@@ -22,6 +25,7 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
+# APP_URL = "0.0.0.0:8000"
 APP_URL = "ml:8000"
 
 TREAD_ANALYSIS_URL = f"http://{APP_URL}/api/v1/analyze_thread"
@@ -32,7 +36,15 @@ TIRE_INFO_EXTRACTION_URL = f"http://{APP_URL}/api/v1/extract_information"
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('tg-bot')
+
+class DropHTTPReqFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        # return False to drop the record
+        return "HTTP Request:" not in record.getMessage()
+    
+handler = logging.getLogger().handlers[0]
+handler.addFilter(DropHTTPReqFilter())
 
 # Conversation states
 (
@@ -83,7 +95,7 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     logger.info(f'User {username} started conversation')
     await update.message.reply_text("Введите пароль:")
     return PASSWORD
@@ -92,7 +104,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     token = update.message.text
     true_token = os.environ["API_TOKEN"]
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     if token != true_token:
         logger.info(f'Incorrect password for user {username}')
         return await incorrect_password(update, context)
@@ -109,19 +121,22 @@ async def incorrect_password(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle main‐menu button presses."""
+    username = update.effective_user.username
     query = update.callback_query
     await query.answer()
 
     if query.data == CB_SIDE:
+        logging.info(f'User {username} picked OCR')
         await context.bot.send_message(
             query.message.chat_id, "Загрузите фотографию боковой стороны шины"
         )
         return SIDE_PHOTO
 
     if query.data == CB_TREAD:
+        logging.info(f'User {username} picked tread')
         await context.bot.send_message(
             query.message.chat_id,
-            "Загрузите фотографию протектора шины.\nУбедитесь, что шина полностью в кадре",
+            "Загрузите фотографию протектора шины",
         )
         return TREAD_PHOTO
 
@@ -130,7 +145,7 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     logger.info(f'User {username} uploaded photo for OCR')
     await update.message.reply_text("Обработка фотографии...")
 
@@ -169,7 +184,7 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle side‐view result buttons."""
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     query = update.callback_query
     await query.answer()
 
@@ -189,7 +204,7 @@ async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def side_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle free‐text for side‐view."""
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     user_text = update.message.text
     logging.info(f'User {username} edits OCR result: {user_text}')
     await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
@@ -198,7 +213,7 @@ async def side_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process tread photo"""
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     logger.info(f'User {username} uploaded photo for tread')
     await update.message.reply_text("Обработка фотографии...")
 
@@ -218,7 +233,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     resp.raise_for_status()
 
     data = resp.json()
-    logger.info(data)
+    #logger.info(data)
 
     tread_depth = data["thread_depth"]
     spikes = data["spikes"]
@@ -251,7 +266,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle tread result buttons."""
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     query = update.callback_query
     await query.answer()
 
@@ -272,17 +287,17 @@ async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def tread_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle free‐text for tread."""
     user_text = update.message.text
-    username = update.message.from_user['username']
-    logger.log(f'{username} edit for tread: {user_text}')
+    username = update.effective_user.username
+    logger.info(f'{username} edit for tread: {user_text}')
     await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
     return await send_main_menu(update, context)
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle /cancel to end conversation."""
-    username = update.message.from_user['username']
+    username = update.effective_user.username
     await update.message.reply_text("До свидания!")
-    logger.log(f'User {username} ended the conversation')
+    logger.info(f'User {username} ended the conversation')
     return ConversationHandler.END
 
 
