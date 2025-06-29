@@ -76,7 +76,6 @@ class TireOCR:
         return result
 
     def _parse_llm_response(self, result: str) -> Dict[str, Optional[str]]:
-        # Extract JSON object using regex
         match = re.search(r"\{.*\}", result, flags=re.DOTALL)
         if not match:
             raise ValueError("No JSON object found in LLM response")
