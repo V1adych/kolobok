@@ -83,6 +83,8 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    username = update.message.from_user['username']
+    logger.info(f'User {username} started conversation')
     await update.message.reply_text("Введите пароль:")
     return PASSWORD
 
@@ -90,10 +92,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     token = update.message.text
     true_token = os.environ["API_TOKEN"]
+    username = update.message.from_user['username']
     if token != true_token:
+        logger.info(f'Incorrect password for user {username}')
         return await incorrect_password(update, context)
     else:
         context.user_data["token"] = f"Bearer {token}"
+        logger.info(f'{username} entered correct password')
         return await send_main_menu(update, context)
 
 
@@ -125,6 +130,8 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    username = update.message.from_user['username']
+    logger.info(f'User {username} uploaded photo for OCR')
     await update.message.reply_text("Обработка фотографии...")
 
     photo = update.message.photo[-1]
@@ -133,6 +140,7 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     bio = io.BytesIO()
     await tg_file.download_to_memory(out=bio)
     bio.seek(0)
+    logger.info(f'Successfully downloaded photo to memory')
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
     header = {"Authorization": context.user_data["token"]}
@@ -140,7 +148,7 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     resp = requests.post(TIRE_INFO_EXTRACTION_URL, headers=header, json=payload)
     resp.raise_for_status()
-    print(resp.json())
+    logger.info(f'User {username} got the OCR result: {resp.json()}')
 
     data = resp.json()
     manufacturer = data.get("manufacturer") or "Не определено"
@@ -161,14 +169,17 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle side‐view result buttons."""
+    username = update.message.from_user['username']
     query = update.callback_query
     await query.answer()
 
     if query.data == CB_SIDE_OK:
+        logger.info(f'User {username} agreed with OCR result')
         await context.bot.send_message(query.message.chat_id, "Хорошего дня!")
         return await send_main_menu(update, context)
 
     # CB_SIDE_CUSTOM
+    logger.info(f'User {username} edit the OCR result')
     await context.bot.send_message(
         query.message.chat_id,
         "Введите свой вариант производителя, модели и размера шины:",
@@ -178,13 +189,17 @@ async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def side_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle free‐text for side‐view."""
+    username = update.message.from_user['username']
     user_text = update.message.text
+    logging.info(f'User {username} edits OCR result: {user_text}')
     await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
     return await send_main_menu(update, context)
 
 
 async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process tread photo"""
+    username = update.message.from_user['username']
+    logger.info(f'User {username} uploaded photo for tread')
     await update.message.reply_text("Обработка фотографии...")
 
     photo = update.message.photo[-1]
@@ -193,6 +208,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     bio = io.BytesIO()
     await tg_file.download_to_memory(out=bio)
     bio.seek(0)
+    logger.info('Successfully downloaded photo to memory')
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
     header = {"Authorization": context.user_data["token"]}
@@ -202,8 +218,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     resp.raise_for_status()
 
     data = resp.json()
-
-    # logger.log(msg=f"keys: {data.keys()}")
+    logger.info(data)
 
     tread_depth = data["thread_depth"]
     spikes = data["spikes"]
@@ -219,6 +234,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     bio.seek(0)
     await update.message.reply_photo(bio)
 
+    logger.info(f'Tread detection result for {username}: tread depth: {tread_depth:.2f}, bad: {num_bad}, good: {num_good}')
     await update.message.reply_text(
         f"Глубина протектора: {tread_depth:.2f}\n"
         + f"Количество плохих шипов: {num_bad}\n"
@@ -226,7 +242,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("OK", callback_data=CB_TREAD_OK)],
-                # [InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
+                [InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
             ]
         ),
     )
@@ -235,14 +251,17 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle tread result buttons."""
+    username = update.message.from_user['username']
     query = update.callback_query
     await query.answer()
 
     if query.data == CB_TREAD_OK:
+        logger.info(f'User {username} agreed with tread result')
         await context.bot.send_message(query.message.chat_id, "Хорошего дня!")
         return await send_main_menu(update, context)
 
     # CB_TREAD_CUSTOM
+    logger.info(f'User {username} edits tread result')
     await context.bot.send_message(
         query.message.chat_id,
         "Введите свой вариант глубины протектора и количества шин:",
@@ -253,13 +272,17 @@ async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def tread_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle free‐text for tread."""
     user_text = update.message.text
+    username = update.message.from_user['username']
+    logger.log(f'{username} edit for tread: {user_text}')
     await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
     return await send_main_menu(update, context)
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle /cancel to end conversation."""
+    username = update.message.from_user['username']
     await update.message.reply_text("До свидания!")
+    logger.log(f'User {username} ended the conversation')
     return ConversationHandler.END
 
 

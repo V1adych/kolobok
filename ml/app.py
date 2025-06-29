@@ -33,7 +33,6 @@ def verify_token(
     Ensure Authorization: Bearer <token> is present and valid.
     """
     token = credentials.credentials
-    # replace this check with your real validation
     if credentials.scheme.lower() != "bearer" or token != API_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

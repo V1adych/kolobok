@@ -18,7 +18,10 @@ services:
       retries: 5
 
   ml:
-    build: ./ml
+    build:
+      context: ./ml
+      secrets:
+        - envfile
     container_name: ml
     environment:
       - API_TOKEN=${API_TOKEN}
@@ -46,3 +49,7 @@ services:
 
 volumes:
   db_data:
+
+secrets:
+  envfile:
+    file: .env
