@@ -4,6 +4,7 @@ import requests
 import io
 import os
 from PIL import Image
+import time
 # from dotenv import load_dotenv
 
 # load_dotenv()
@@ -145,9 +146,11 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start = time.perf_counter()
     username = update.effective_user.username
     logger.info(f'User {username} uploaded photo for OCR')
     await update.message.reply_text("Обработка фотографии...")
+
 
     photo = update.message.photo[-1]
     tg_file = await photo.get_file()
@@ -155,21 +158,24 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     bio = io.BytesIO()
     await tg_file.download_to_memory(out=bio)
     bio.seek(0)
-    logger.info(f'Successfully downloaded photo to memory')
+    logger.info(f'Successfully downloaded photo of {username} to memory')
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
     header = {"Authorization": context.user_data["token"]}
     payload = {"image": b64}
 
+    logger.info(f'Posted response for OCR for {username}')
     resp = requests.post(TIRE_INFO_EXTRACTION_URL, headers=header, json=payload)
     resp.raise_for_status()
-    logger.info(f'User {username} got the OCR result: {resp.json()}')
 
     data = resp.json()
+    logger.info(f'User {username} got the OCR result: {resp.json().keys()}')
+
     manufacturer = data.get("manufacturer") or "Не определено"
     model = data.get("model") or "Не определено"
     tire_size = data.get("tire_size_string") or "Не определено"
 
+    logger.info(f'OCR result for {username}: {manufacturer} {model} {tire_size}')
     await update.message.reply_text(
         f"Производитель: {manufacturer}\nМодель: {model}\nРазмер: {tire_size}",
         reply_markup=InlineKeyboardMarkup(
@@ -179,6 +185,8 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             ]
         ),
     )
+    end = time.perf_counter()
+    logger.info(f'OCR for {username} complete in {end - start}')
     return SIDE_RESULT
 
 
@@ -213,6 +221,7 @@ async def side_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process tread photo"""
+    start = time.perf_counter()
     username = update.effective_user.username
     logger.info(f'User {username} uploaded photo for tread')
     await update.message.reply_text("Обработка фотографии...")
@@ -223,17 +232,23 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     bio = io.BytesIO()
     await tg_file.download_to_memory(out=bio)
     bio.seek(0)
-    logger.info('Successfully downloaded photo to memory')
+    logger.info(f'Successfully downloaded photo of {username} to memory')
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
     header = {"Authorization": context.user_data["token"]}
     payload = {"image": b64, "token": context.user_data["token"]}
 
+    logger.info(f'Posted response for tread for {username}')
     resp = requests.post(TREAD_ANALYSIS_URL, headers=header, json=payload)
     resp.raise_for_status()
 
     data = resp.json()
+    logger.info(f'User {username} got the tread result: {resp.json().keys()}')
     #logger.info(data)
+
+    if resp.json()['success'] == 0:
+        await update.message.reply_text(f"Произошла ошибка при обработке фотографии: {resp.json()['detail']}")
+        return TREAD_RESULT
 
     tread_depth = data["thread_depth"]
     spikes = data["spikes"]
@@ -261,6 +276,8 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             ]
         ),
     )
+    end = time.perf_counter()
+    logger.info(f'Tread for {username} complete in {end - start}')
     return TREAD_RESULT
 
 
