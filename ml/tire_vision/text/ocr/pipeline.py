@@ -6,10 +6,10 @@ import numpy as np
 import replicate
 import io
 from traceback import format_exc
+import logging
+import re
 
 from tire_vision.config import OCRConfig
-
-import logging
 
 
 class TireOCR:
@@ -76,19 +76,19 @@ class TireOCR:
         return result
 
     def _parse_llm_response(self, result: str) -> Dict[str, Optional[str]]:
-        """Parse LLM response into structured tire information."""
-        try:
-            tire_info = json.loads(result.strip())
-            self.logger.info(f"Parsed OCR result: {tire_info}")
+        # Extract JSON object using regex
+        match = re.search(r"\{.*\}", result, flags=re.DOTALL)
+        if not match:
+            raise ValueError("No JSON object found in LLM response")
+        json_str = match.group(0)
+        tire_info = json.loads(json_str)
+        self.logger.info(f"Parsed OCR result: {tire_info}")
 
-            return {
-                "manufacturer": tire_info.get("manufacturer"),
-                "model": tire_info.get("model"),
-                "tire_size_string": tire_info.get("tire_size_string"),
-            }
-        except json.JSONDecodeError:
-            self.logger.info(f"JSONDecodeError: Failed to parse OCR result {result}")
-            raise
+        return {
+            "manufacturer": tire_info.get("manufacturer"),
+            "model": tire_info.get("model"),
+            "tire_size_string": tire_info.get("tire_size_string"),
+        }
 
     def _get_default_response(self) -> Dict[str, Optional[str]]:
         """Return default response when processing fails."""
