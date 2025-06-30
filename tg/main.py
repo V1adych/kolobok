@@ -127,16 +127,15 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     if query.data == CB_SIDE:
         logging.info(f'User {username} picked OCR')
-        await context.bot.send_message(
-            query.message.chat_id, "Загрузите фотографию боковой стороны шины"
+        await query.edit_message_text(
+            text="Загрузите фотографию боковой стороны шины"
         )
         return SIDE_PHOTO
 
     if query.data == CB_TREAD:
         logging.info(f'User {username} picked tread')
-        await context.bot.send_message(
-            query.message.chat_id,
-            "Загрузите фотографию протектора шины",
+        await query.edit_message_text(
+            text="Загрузите фотографию протектора шины",
         )
         return TREAD_PHOTO
 
