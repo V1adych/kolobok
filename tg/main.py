@@ -29,7 +29,6 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 APP_URL = "ml:8000"
 
 TREAD_ANALYSIS_URL = f"http://{APP_URL}/api/v1/analyze_thread"
-TIRE_READING_URL = f"http://{APP_URL}/api/v1/identify_tire"
 TIRE_INFO_EXTRACTION_URL = f"http://{APP_URL}/api/v1/extract_information"
 
 # Enable logging
