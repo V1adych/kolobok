@@ -246,8 +246,13 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     #logger.info(data)
 
     if resp.json()['success'] == 0:
-        await update.message.reply_text(f"Произошла ошибка при обработке фотографии: {resp.json()['detail']}")
-        return TREAD_RESULT
+        await update.message.reply_text(f"Произошла ошибка при обработке фотографии: {resp.json()['detail']}",
+                                        reply_markup=InlineKeyboardMarkup(
+                                        [
+                                            [InlineKeyboardButton("В меню", callback_data=CB_MENU)],
+                                        ]
+                                    ),)
+        return MENU
 
     tread_depth = data["thread_depth"]
     spikes = data["spikes"]
