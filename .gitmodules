@@ -5,6 +5,3 @@
 	update = none
 	ignore = dirty
 	commit = e19262d1a23992fc2cef934d6756b89ff50fe5c3
-[submodule "ml/external/surya"]
-	path = ml/external/surya
-	url = git@github.com:V1adych/surya.git
