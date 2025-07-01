@@ -3,11 +3,16 @@ import base64
 import requests
 import io
 import os
+import json
 from PIL import Image
 import time
-# from dotenv import load_dotenv
+from functools import wraps
 
-# load_dotenv()
+#
+from dotenv import load_dotenv
+
+load_dotenv()
+#
 
 from telegram import (
     Update,
@@ -45,6 +50,20 @@ class DropHTTPReqFilter(logging.Filter):
     
 handler = logging.getLogger().handlers[0]
 handler.addFilter(DropHTTPReqFilter())
+
+ALLOWED_USERS = json.loads(os.environ["ALLOWED_USERS"])
+
+def restricted(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user_id = update.effective_user.id
+        if user_id not in ALLOWED_USERS:
+            # Optionally log attempt
+            logger.info(f"Unauthorized access denied for {user_id}")
+            await update.message.reply_text("У вас нет доступа к функциям этого бота. Обратитесь к администратору")
+            return  # do not call the handler
+        return await func(update, context, *args, **kwargs)
+    return wrapper
 
 # Conversation states
 (
@@ -93,31 +112,11 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
     return MENU
 
-
+@restricted
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     username = update.effective_user.username
     logger.info(f'User {username} started conversation')
-    await update.message.reply_text("Введите пароль:")
-    return PASSWORD
-
-
-async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    token = update.message.text
-    true_token = os.environ["API_TOKEN"]
-    username = update.effective_user.username
-    if token != true_token:
-        logger.info(f'Incorrect password for user {username}')
-        return await incorrect_password(update, context)
-    else:
-        context.user_data["token"] = f"Bearer {token}"
-        logger.info(f'{username} entered correct password')
-        return await send_main_menu(update, context)
-
-
-async def incorrect_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Неверный пароль, попробуйте ещё раз:")
-    return PASSWORD
-
+    return await send_main_menu(update, context)
 
 async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle main‐menu button presses."""
@@ -327,7 +326,6 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
             MENU: [CallbackQueryHandler(menu_choice)],
             SIDE_PHOTO: [MessageHandler(filters.PHOTO, side_photo)],
             SIDE_RESULT: [CallbackQueryHandler(side_result)],

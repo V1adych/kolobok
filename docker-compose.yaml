@@ -46,6 +46,7 @@ services:
       - API_TOKEN=${API_TOKEN}
       - BOT_TOKEN=${BOT_TOKEN}
       - APP_URL=${APP_URL}
+      - ALLOWED_USERS=${ALLOWED_USERS}
 
 volumes:
   db_data:
