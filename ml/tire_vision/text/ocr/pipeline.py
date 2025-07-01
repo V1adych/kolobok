@@ -21,20 +21,24 @@ class TireOCR:
         self.logger = logging.getLogger("ocr")
         self.logger.info("TireOCR module initialized")
 
-    def extract_tire_info(self, image: np.ndarray) -> Dict[str, Optional[str]]:
-        """
-        Extract tire information from an image.
+    def extract_tire_info(
+        self,
+        images: list[np.ndarray],
+        prompt: str,
+    ) -> Dict[str, Optional[str]]:
+        """Extract tire information from one or more images.
 
         Args:
-            image: Input image as numpy array (RGB format)
+            images: List of images (numpy arrays in RGB format)
+            prompt: Prompt to send to the VLM.
 
         Returns:
             Dictionary with manufacturer, model, and tire_size_string fields
         """
-        file_input = self._prepare_image(image)
+        file_inputs = [self._prepare_image(img) for img in images]
 
         try:
-            result = self._get_llm_response(file_input)
+            result = self._get_llm_response(file_inputs, prompt)
             tire_info = self._parse_llm_response(result)
             return tire_info
         except Exception:
@@ -55,15 +59,15 @@ class TireOCR:
         b64_data = base64.b64encode(buffer.read()).decode("utf-8")
         return f"data:application/octet-stream;base64,{b64_data}"
 
-    def _get_llm_response(self, file_input: str) -> str:
+    def _get_llm_response(self, file_inputs: list[str], prompt: str) -> str:
         """Get response from LLM model."""
         result = ""
         for event in replicate.stream(
             self.config.model_name,
             input={
                 "top_p": self.config.top_p,
-                "prompt": self.config.prompt,
-                "image_input": [file_input],
+                "prompt": prompt,
+                "image_input": file_inputs,
                 "temperature": self.config.temperature,
                 "presence_penalty": self.config.presence_penalty,
                 "frequency_penalty": self.config.frequency_penalty,
