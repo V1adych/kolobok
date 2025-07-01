@@ -34,7 +34,9 @@ class TireAnnotationPipeline:
         self.logger.info("Running TireAnnotationPipeline")
         start_time = time.perf_counter()
 
-        unwrapped_image = None
+        unwrap_success = False
+        unwrapped_image: np.ndarray | None = None
+
         self.logger.info("Running TireUnwrapper")
         try:
             self.logger.info("Running TireDetector")
@@ -45,19 +47,38 @@ class TireAnnotationPipeline:
                 detection_result[self.detector.tire_class_name],
                 detection_result[self.detector.rim_class_name],
             )
+            unwrap_success = True
         except Exception:
             self.logger.error(format_exc())
             self.logger.error(
                 "Error running TireUnwrapper. Falling back to original image"
             )
-            unwrapped_image = image
 
         self.logger.info(
-            f"Original image shape: {image.shape}, unwrapped image shape: {unwrapped_image.shape}"
+            f"Original image shape: {image.shape}, unwrapped image shape: {getattr(unwrapped_image, 'shape', None)}"
         )
 
+        # Prepare images and prompt for OCR
+        if unwrap_success and unwrapped_image is not None:
+            self.logger.info("Unwrap successful, using both images for OCR")
+            images_for_ocr = [image, unwrapped_image]
+            prompt_suffix = (
+                "You will receive TWO images: the first is the original tire photo, "
+                "the second is the unwrapped tread/sidewall strip. Use both images to "
+                "extract the tire information."
+            )
+        else:
+            self.logger.info("Unwrap failed, using only original image for OCR")
+            images_for_ocr = [image]
+            prompt_suffix = (
+                "You will receive ONE image: the original tire photo. Use it to extract "
+                "the tire information."
+            )
+
+        prompt = f"{self.ocr.config.prompt}\n\n{prompt_suffix}"
+
         self.logger.info("Running TireOCR")
-        ocr_result = self.ocr.extract_tire_info(unwrapped_image)
+        ocr_result = self.ocr.extract_tire_info(images_for_ocr, prompt)
         self.logger.info(f"TireOCR result:\n {ocr_result}")
 
         latency = time.perf_counter() - start_time
