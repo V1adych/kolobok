@@ -32,6 +32,7 @@ from telegram.ext import (
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 # APP_URL = "0.0.0.0:8000"
 APP_URL = "ml:8000"
+API_TOKEN = os.environ["API_TOKEN"]
 
 TREAD_ANALYSIS_URL = f"http://{APP_URL}/api/v1/analyze_thread"
 TIRE_INFO_EXTRACTION_URL = f"http://{APP_URL}/api/v1/extract_information"
@@ -157,7 +158,7 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'Successfully downloaded photo of {username} to memory')
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
-    header = {"Authorization": context.user_data["token"]}
+    header = {"Authorization": f'Bearer {API_TOKEN}'}
     payload = {"image": b64}
 
     logger.info(f'Posted response for OCR for {username}')
@@ -231,8 +232,8 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     logger.info(f'Successfully downloaded photo of {username} to memory')
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
-    header = {"Authorization": context.user_data["token"]}
-    payload = {"image": b64, "token": context.user_data["token"]}
+    header = {"Authorization": f'Bearer {API_TOKEN}'}
+    payload = {"image": b64, "token": API_TOKEN}
 
     logger.info(f'Posted response for tread for {username}')
     resp = requests.post(TREAD_ANALYSIS_URL, headers=header, json=payload)
