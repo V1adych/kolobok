@@ -3,15 +3,14 @@ import base64
 import requests
 import io
 import os
-import json
 from PIL import Image
 import time
 from functools import wraps
 
 #
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
-load_dotenv()
+# load_dotenv()
 #
 
 from telegram import (
@@ -51,13 +50,13 @@ class DropHTTPReqFilter(logging.Filter):
 handler = logging.getLogger().handlers[0]
 handler.addFilter(DropHTTPReqFilter())
 
-ALLOWED_USERS = json.loads(os.environ["ALLOWED_USERS"])
+ALLOWED_USERS = os.environ["ALLOWED_USERS"].split(',')
 
 def restricted(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user_id = update.effective_user.id
-        if user_id not in ALLOWED_USERS:
+        if str(user_id) not in ALLOWED_USERS:
             # Optionally log attempt
             logger.info(f"Unauthorized access denied for {user_id}")
             await update.message.reply_text("У вас нет доступа к функциям этого бота. Обратитесь к администратору")
