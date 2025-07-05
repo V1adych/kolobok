@@ -3,16 +3,14 @@ services:
     build: ./db
     container_name: db
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
     ports:
       - "3306:3306"
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,6 +21,8 @@ services:
       secrets:
         - envfile
     container_name: ml
+    depends_on:
+      - db
     environment:
       - API_TOKEN=${API_TOKEN}
       - HF_TOKEN=${HF_TOKEN}
@@ -32,8 +32,12 @@ services:
       - DEPTH_ESTIMATOR_CHECKPOINT=${DEPTH_ESTIMATOR_CHECKPOINT}
       - TIRE_DETECTOR_MODEL_ID=${TIRE_DETECTOR_MODEL_ID}
       - ROBOFLOW_API_KEY=${ROBOFLOW_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - DEVICE=${DEVICE}
-      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
     ports:
       - "8000:8000"
 

@@ -7,10 +7,12 @@ import numpy as np
 from tire_vision.text.preprocessor.model import TireDetector
 from tire_vision.text.preprocessor.unwrapper import TireUnwrapper
 from tire_vision.text.ocr.pipeline import TireOCR
+from tire_vision.text.index.pipeline import TireIndexPipeline
 from tire_vision.config import (
     OCRConfig,
     TireUnwrapperConfig,
     TireDetectorConfig,
+    TireIndexConfig,
 )
 
 import logging
@@ -22,10 +24,12 @@ class TireAnnotationPipeline:
         detector_config: TireDetectorConfig,
         unwrapper_config: TireUnwrapperConfig,
         ocr_config: OCRConfig,
+        index_config: TireIndexConfig,
     ):
         self.detector = TireDetector(detector_config)
         self.unwrapper = TireUnwrapper(unwrapper_config)
         self.ocr = TireOCR(ocr_config)
+        self.index = TireIndexPipeline(index_config)
 
         self.logger = logging.getLogger("tire_annotation_pipeline")
         self.logger.info("TireAnnotationPipeline initialized")
@@ -58,7 +62,6 @@ class TireAnnotationPipeline:
             f"Original image shape: {image.shape}, unwrapped image shape: {getattr(unwrapped_image, 'shape', None)}"
         )
 
-        # Prepare images and prompt for OCR
         if unwrap_success and unwrapped_image is not None:
             self.logger.info("Unwrap successful, using both images for OCR")
             images_for_ocr = [image, unwrapped_image]
@@ -81,7 +84,11 @@ class TireAnnotationPipeline:
         ocr_result = self.ocr.extract_tire_info(images_for_ocr, prompt)
         self.logger.info(f"TireOCR result:\n {ocr_result}")
 
+        self.logger.info("Running TireIndexPipeline")
+        index_result = self.index.run(queries=ocr_result["strings"])
+        self.logger.info(f"TireIndexPipeline result:\n {index_result}")
+
         latency = time.perf_counter() - start_time
         self.logger.info(f"TireAnnotationPipeline completed in {latency:.4f} seconds")
 
-        return ocr_result
+        return index_result

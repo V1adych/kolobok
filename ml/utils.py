@@ -19,6 +19,7 @@ annotation_pipeline = TireAnnotationPipeline(
     detector_config=cfg.tire_detector,
     unwrapper_config=cfg.tire_unwrapper,
     ocr_config=cfg.ocr,
+    index_config=cfg.tire_index,
 )
 
 

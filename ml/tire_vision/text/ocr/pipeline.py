@@ -1,9 +1,9 @@
 import base64
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from PIL import Image
 import numpy as np
-import replicate
+from openai import OpenAI
 import io
 from traceback import format_exc
 import logging
@@ -13,10 +13,12 @@ from tire_vision.config import OCRConfig
 
 
 class TireOCR:
-    """OCR class for extracting tire information from images."""
-
     def __init__(self, config: OCRConfig):
         self.config = config
+        self.client = OpenAI(
+            base_url=self.config.base_url,
+            api_key=self.config.api_key,
+        )
 
         self.logger = logging.getLogger("ocr")
         self.logger.info("TireOCR module initialized")
@@ -25,16 +27,7 @@ class TireOCR:
         self,
         images: list[np.ndarray],
         prompt: str,
-    ) -> Dict[str, Optional[str]]:
-        """Extract tire information from one or more images.
-
-        Args:
-            images: List of images (numpy arrays in RGB format)
-            prompt: Prompt to send to the VLM.
-
-        Returns:
-            Dictionary with manufacturer, model, and tire_size_string fields
-        """
+    ) -> Dict[str, list[str]]:
         file_inputs = [self._prepare_image(img) for img in images]
 
         try:
@@ -49,7 +42,6 @@ class TireOCR:
             return self._get_default_response()
 
     def _prepare_image(self, image: np.ndarray) -> str:
-        """Prepare image for OCR processing."""
         pil_image = Image.fromarray(image)
 
         buffer = io.BytesIO()
@@ -57,29 +49,45 @@ class TireOCR:
         buffer.seek(0)
 
         b64_data = base64.b64encode(buffer.read()).decode("utf-8")
-        return f"data:application/octet-stream;base64,{b64_data}"
+        return f"data:image/jpeg;base64,{b64_data}"
 
     def _get_llm_response(self, file_inputs: list[str], prompt: str) -> str:
-        """Get response from LLM model."""
         result = ""
-        for event in replicate.stream(
-            self.config.model_name,
-            input={
-                "top_p": self.config.top_p,
-                "prompt": prompt,
-                "image_input": file_inputs,
-                "temperature": self.config.temperature,
-                "presence_penalty": self.config.presence_penalty,
-                "frequency_penalty": self.config.frequency_penalty,
-                "max_completion_tokens": self.config.max_completion_tokens,
-            },
-        ):
-            result += str(event)
+        content = [
+            {"type": "text", "text": prompt},
+        ]
+        for file_input in file_inputs:
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": file_input},
+                }
+            )
+        
+        stream = self.client.chat.completions.create(
+            model=self.config.model_name,
+            messages=[
+                {
+                    "role": "user",
+                    "content": content,
+                }
+            ],
+            stream=True,
+            temperature=self.config.temperature,
+            top_p=self.config.top_p,
+            max_tokens=self.config.max_completion_tokens,
+            presence_penalty=self.config.presence_penalty,
+            frequency_penalty=self.config.frequency_penalty,
+        )
+
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                result += chunk.choices[0].delta.content
 
         self.logger.info(f"LLM response: {result}")
         return result
 
-    def _parse_llm_response(self, result: str) -> Dict[str, Optional[str]]:
+    def _parse_llm_response(self, result: str) -> Dict[str, list[str]]:
         match = re.search(r"\{.*\}", result, flags=re.DOTALL)
         if not match:
             raise ValueError("No JSON object found in LLM response")
@@ -88,12 +96,9 @@ class TireOCR:
         self.logger.info(f"Parsed OCR result: {tire_info}")
 
         return {
-            "manufacturer": tire_info.get("manufacturer"),
-            "model": tire_info.get("model"),
-            "tire_size_string": tire_info.get("tire_size_string"),
+            "strings": tire_info.get("strings", []),
         }
 
-    def _get_default_response(self) -> Dict[str, Optional[str]]:
-        """Return default response when processing fails."""
+    def _get_default_response(self) -> Dict[str, list[str]]:
         self.logger.info("Falling back to default values")
-        return {"manufacturer": None, "model": None, "tire_size_string": None}
+        return {"strings": []}

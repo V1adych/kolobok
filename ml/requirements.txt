@@ -5,3 +5,7 @@ fastapi
 uvicorn
 replicate
 opencv-python
+sqlalchemy[asyncio]>=1.4
+PyMySQL
+aiomysql
+openai

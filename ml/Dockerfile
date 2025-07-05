@@ -14,6 +14,6 @@ RUN pip install pillow==9.5.0 numpy==1.26
 COPY . .
 
 RUN --mount=type=secret,id=envfile \
-    set -a && . /run/secrets/envfile && set +a && python _init.py
+    sh -c 'set -e && set -a && . /run/secrets/envfile && set +a && python _init.py'
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

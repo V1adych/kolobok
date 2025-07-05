@@ -52,30 +52,20 @@ class DepthEstimatorConfig:
     resize_shape: Tuple[int, int] = (512, 512)
 
 
-OCR_PROMPT = """You are provided with an image of a tire. Your task is to determine the following parameters of the tire:
-1) manufacturer - manufacturer of the tire, if provided, else null
-2) model - model of the tire, string
-3) tire_size_string - this size of the tire as a single string in format "<width, int>/<aspect-ratio, int><construction-type, char>/<diameter, int> <max-weight, int><speed-rating, char>", for example, "205/55R/16 91V". usually, the format is always the same.
+OCR_PROMPT = """Your task is to extract ALL (absolutely all) visible text from the provided image(s) of a tire.
+Present the extracted text as a JSON object with a single key "strings", which should be a list of all text strings found on the tire.
+Do not include any reasoning or explanations, only the final JSON object.
 
-each field must be either the answer to the question, or null, if you cannot find this information on the image.
-Answer precisely what is written on the tire.
-Note about tire_size_string: sometimes, the format of the size is not as described above, in such cases, return tire_size_string as it is written on the tire.
-Note about model and manufacturer: usually, the manufacturer and model names have the largest font size among all the text on the image, but distinguishing model and manufacturer name is up to you.
-Note about the problem as a whole: some information might be duplicated multiple times, which makes the task easier, but overwhelming to resolve conflicts. Try to focus on the most prominent options.
-You are allowed and encouraged to reason about the output, but your final answer has to be in JSON format. My recommendation is to use the following format:
-
-Example:
-On the image (images) I can see the following text: ... <here you can list all the text you see on the image>
-some of those repeat multiple times, which introduces multiple candidates for manufacturer, model, and tire_size_string. To avoid inaccuracies, I will focus on the most prominent ones.
-<text>, <text> have the largest font size, so they might be manufacturer and model names.
-I am not confident about tire size, as I can see that it is written in multiple spots. Hence, I will return the most clear writing as tire_size_string.
-All in all, most likely, manufacturer is ..., model is ..., tire_size_string is ...,
-Final answer:
+Example of a valid response:
 {
-    "manufacturer": "...",
-    "model": "...",
-    "tire_size_string": "..."
-}"""
+    "strings": ["MICHELIN", "Pilot Sport 4 S", "245/35ZR20", "95Y", "Extra Load"]
+}
+
+If no text is visible, return:
+{
+    "strings": []
+}
+"""
 
 
 @dataclass
@@ -102,14 +92,27 @@ class TireUnwrapperConfig:
 
 @dataclass
 class OCRConfig:
-    model_name: str = "openai/gpt-4o-mini"
-    # model_name: str = "cuuupid/glm-4v-9b:69196a237cdc310988a4b12ad64f4b36d10189428c19a18526af708546e1856f"
+    model_name: str = "qwen/qwen2.5-vl-72b-instruct:free"
+    base_url: str = "https://openrouter.ai/api/v1"
+    api_key: str = os.environ["OPENROUTER_API_KEY"]
     prompt: str = OCR_PROMPT
     top_p: float = 0.9
     temperature: float = 0.7
     presence_penalty: float = 0
     frequency_penalty: float = 0
     max_completion_tokens: int = 4096
+
+
+@dataclass
+class TireIndexConfig:
+    db_host: str = os.environ.get("DB_HOST", "db")
+    db_port: int = int(os.environ.get("DB_PORT", "3306"))
+    db_name: str = os.environ["MYSQL_DATABASE"]
+    db_user: str = "root"
+    db_password: str = os.environ["MYSQL_ROOT_PASSWORD"]
+    table_name: str = "models"
+    similarity_threshold: float = 0.5
+    max_query_results: int = 3
 
 
 @dataclass
@@ -120,3 +123,4 @@ class TireVisionConfig:
     tire_detector = TireDetectorConfig()
     tire_unwrapper = TireUnwrapperConfig()
     ocr = OCRConfig()
+    tire_index = TireIndexConfig()
