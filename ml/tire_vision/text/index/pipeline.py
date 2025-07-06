@@ -4,11 +4,11 @@ from collections import defaultdict
 import logging
 
 from tire_vision.text.index.db import TireModelDatabase
-from tire_vision.config import TireIndexConfig
+from tire_vision.config import IndexConfig
 
 
-class TireIndexPipeline:
-    def __init__(self, config: TireIndexConfig):
+class IndexPipeline:
+    def __init__(self, config: IndexConfig):
         self.config = config
         self.database = TireModelDatabase(config)
         self.logger = logging.getLogger("tire_index_pipeline")

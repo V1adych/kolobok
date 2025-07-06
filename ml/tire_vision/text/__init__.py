@@ -1,4 +1,4 @@
-from tire_vision.text.ocr.pipeline import TireOCR
-from tire_vision.text.preprocessor.unwrapper import TireUnwrapper
+from tire_vision.text.ocr.pipeline import OCRPipeline
+from tire_vision.text.preprocessor.unwrapper import SidewallUnwrapper
 
-__all__ = ["TireOCR", "TireUnwrapper"]
+__all__ = ["OCRPipeline", "SidewallUnwrapper"]

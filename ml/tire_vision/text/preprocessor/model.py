@@ -1,35 +1,70 @@
-from collections import defaultdict
-
 import numpy as np
 
-from inference import get_roboflow_model
+import torch
+from torch import nn
+from torch.nn import functional as F
 
-from tire_vision.config import TireDetectorConfig
+from torchvision.transforms import functional as VF, InterpolationMode
+
+from transformers import SegformerConfig, SegformerForSemanticSegmentation
 
 
-class TireDetector:
-    def __init__(self, config: TireDetectorConfig):
+from tire_vision.config import SidewallSegmentatorConfig
+
+
+class SegformerWrapper(nn.Module):
+    def __init__(self, model: nn.Module):
+        super().__init__()
+        self.model = model
+
+    def forward(self, images: torch.Tensor):
+        logits = self.model(images).logits
+        return logits
+
+
+class SidewallSegmentator:
+    def __init__(self, config: SidewallSegmentatorConfig):
         self.config = config
-        self.model = get_roboflow_model(
-            model_id=self.config.model_id,
-            api_key=self.config.roboflow_api_key,
-        )
 
-        self.rim_class_name = "rim"
-        self.tire_class_name = "wheel"
+        config = SegformerConfig.from_pretrained(self.config.hf_model_id)
+        config.num_labels = 1
 
-    def detect(self, image: np.ndarray):
-        result = self.model.infer(image)
+        base_model = SegformerForSemanticSegmentation._from_config(config)
 
-        output = defaultdict(lambda: None)
-
-        for prediction in result[0].predictions:
-            class_name = prediction.class_name
-            output[class_name] = np.array(
-                [[p.x, p.y] for p in prediction.points], dtype=np.int32
+        self.model = SegformerWrapper(base_model)
+        self.model.load_state_dict(
+            torch.load(
+                self.config.segmentator_checkpoint,
+                map_location=self.config.device,
+                weights_only=True,
             )
+        )
+        self.model.to(self.config.device)
+        self.model.eval()
 
-        assert isinstance(output[self.rim_class_name], np.ndarray)
-        assert isinstance(output[self.tire_class_name], np.ndarray)
+    @torch.no_grad()
+    def detect(self, image: np.ndarray):
+        torch_image = (
+            torch.from_numpy(image)
+            .permute(2, 0, 1)
+            .unsqueeze(0)
+            .to(self.config.device, torch.float32)
+            / 255
+        )
+        *_, h, w = torch_image.shape
 
-        return output
+        torch_image = VF.resize(
+            torch_image,
+            self.config.resize_shape,
+            interpolation=InterpolationMode.BICUBIC,
+        )
+        logits = self.model(torch_image)
+        logits = VF.resize(
+            logits, (h, w), interpolation=InterpolationMode.BICUBIC
+        ).squeeze()
+
+        mask = (F.sigmoid(logits) > self.config.confidence_threshold).to(
+            torch.uint8
+        ).numpy() * 255
+
+        return mask

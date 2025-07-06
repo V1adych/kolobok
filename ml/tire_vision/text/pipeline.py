@@ -4,15 +4,16 @@ from traceback import format_exc
 
 import numpy as np
 
-from tire_vision.text.preprocessor.model import TireDetector
-from tire_vision.text.preprocessor.unwrapper import TireUnwrapper
-from tire_vision.text.ocr.pipeline import TireOCR
-from tire_vision.text.index.pipeline import TireIndexPipeline
+
+from tire_vision.text.preprocessor.model import SidewallSegmentator
+from tire_vision.text.preprocessor.unwrapper import SidewallUnwrapper
+from tire_vision.text.ocr.pipeline import OCRPipeline
+from tire_vision.text.index.pipeline import IndexPipeline
 from tire_vision.config import (
     OCRConfig,
-    TireUnwrapperConfig,
-    TireDetectorConfig,
-    TireIndexConfig,
+    SidewallUnwrapperConfig,
+    SidewallSegmentatorConfig,
+    IndexConfig,
 )
 
 import logging
@@ -21,15 +22,15 @@ import logging
 class TireAnnotationPipeline:
     def __init__(
         self,
-        detector_config: TireDetectorConfig,
-        unwrapper_config: TireUnwrapperConfig,
+        detector_config: SidewallSegmentatorConfig,
+        unwrapper_config: SidewallUnwrapperConfig,
         ocr_config: OCRConfig,
-        index_config: TireIndexConfig,
+        index_config: IndexConfig,
     ):
-        self.detector = TireDetector(detector_config)
-        self.unwrapper = TireUnwrapper(unwrapper_config)
-        self.ocr = TireOCR(ocr_config)
-        self.index = TireIndexPipeline(index_config)
+        self.detector = SidewallSegmentator(detector_config)
+        self.unwrapper = SidewallUnwrapper(unwrapper_config)
+        self.ocr = OCRPipeline(ocr_config)
+        self.index = IndexPipeline(index_config)
 
         self.logger = logging.getLogger("tire_annotation_pipeline")
         self.logger.info("TireAnnotationPipeline initialized")
@@ -44,13 +45,9 @@ class TireAnnotationPipeline:
         self.logger.info("Running TireUnwrapper")
         try:
             self.logger.info("Running TireDetector")
-            detection_result = self.detector.detect(image)
-            self.logger.info(f"TireDetector result keys: {detection_result.keys()}")
-            unwrapped_image = self.unwrapper.get_unwrapped_tire(
-                image,
-                detection_result[self.detector.tire_class_name],
-                detection_result[self.detector.rim_class_name],
-            )
+            tire_mask = self.detector.detect(image)
+            self.logger.info(f"TireDetector result shape: {tire_mask.shape}")
+            unwrapped_image = self.unwrapper.get_unwrapped_tire(image, tire_mask)
             unwrap_success = True
         except Exception:
             self.logger.error(format_exc())
@@ -65,23 +62,12 @@ class TireAnnotationPipeline:
         if unwrap_success and unwrapped_image is not None:
             self.logger.info("Unwrap successful, using both images for OCR")
             images_for_ocr = [image, unwrapped_image]
-            prompt_suffix = (
-                "You will receive TWO images: the first is the original tire photo, "
-                "the second is the unwrapped tread/sidewall strip. Use both images to "
-                "extract the tire information."
-            )
         else:
             self.logger.info("Unwrap failed, using only original image for OCR")
             images_for_ocr = [image]
-            prompt_suffix = (
-                "You will receive ONE image: the original tire photo. Use it to extract "
-                "the tire information."
-            )
-
-        prompt = f"{self.ocr.config.prompt}\n\n{prompt_suffix}"
 
         self.logger.info("Running TireOCR")
-        ocr_result = self.ocr.extract_tire_info(images_for_ocr, prompt)
+        ocr_result = self.ocr.extract_tire_info(images_for_ocr)
         self.logger.info(f"TireOCR result:\n {ocr_result}")
 
         self.logger.info("Running TireIndexPipeline")

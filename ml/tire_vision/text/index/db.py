@@ -22,13 +22,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 
-from tire_vision.config import TireIndexConfig
+from tire_vision.config import IndexConfig
 
 metadata = MetaData()
 
 
 class TireModelDatabase:
-    def __init__(self, config: TireIndexConfig):
+    def __init__(self, config: IndexConfig):
         self.config = config
         self.logger = logging.getLogger("tire_db")
         self._models_table = None
@@ -252,14 +252,10 @@ class TireModelDatabase:
             return output
 
     def _get_models_base_query(self, query: str):
-        """
-        Creates the base SELECT statement for searching models, including the
-        self-join to get the parent (brand) name and the similarity score.
-        """
         parent_table = self.models_table.alias("parent")
-        similarity_score = func.SIMILARITY_SCORE(
-            self.models_table.c.name, query
-        ).label("similarity_score")
+        similarity_score = func.SIMILARITY_SCORE(self.models_table.c.name, query).label(
+            "similarity_score"
+        )
 
         return select(
             self.models_table.c.id,
@@ -287,11 +283,7 @@ class TireModelDatabase:
             if brand_id:
                 where_clauses.append(self.models_table.c.parent_id == brand_id)
 
-            subquery = (
-                base_query
-                .where(and_(*where_clauses))
-                .alias("subquery")
-            )
+            subquery = base_query.where(and_(*where_clauses)).alias("subquery")
 
             stmt = (
                 select(subquery)
@@ -326,11 +318,7 @@ class TireModelDatabase:
             if brand_id:
                 where_clauses.append(self.models_table.c.parent_id == brand_id)
 
-            subquery = (
-                base_query
-                .where(and_(*where_clauses))
-                .alias("subquery")
-            )
+            subquery = base_query.where(and_(*where_clauses)).alias("subquery")
 
             stmt = (
                 select(subquery)
@@ -481,3 +469,13 @@ class TireModelDatabase:
         except Exception as e:
             self.logger.error(f"Database health check failed: {e}")
             return False
+
+    def execute_query(self, query: str):
+        with self.get_session() as session:
+            result = session.execute(text(query))
+            return result.fetchall()
+
+    async def async_execute_query(self, query: str):
+        async with self.async_get_session() as session:
+            result = await session.execute(text(query))
+            return result.fetchall()
