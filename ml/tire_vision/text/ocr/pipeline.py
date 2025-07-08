@@ -118,7 +118,7 @@ class OCRPipeline:
         return messages
 
     def _get_request_kwargs(self, messages: List[dict]) -> Dict[str, Any]:
-        return dict(
+        params = dict(
             model=self.config.model_name,
             messages=messages,
             stream=True,
@@ -127,8 +127,12 @@ class OCRPipeline:
             max_tokens=self.config.max_completion_tokens,
             presence_penalty=self.config.presence_penalty,
             frequency_penalty=self.config.frequency_penalty,
-            extra_body={"provider": {"only": self.config.providers_list}},
         )
+
+        if self.config.providers_list:
+            params["extra_body"] = {"provider": {"only": self.config.providers_list}}
+
+        return params
 
     def _get_llm_response(self, file_inputs: List[str], user_prompt: str) -> str:
         result = ""

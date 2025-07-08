@@ -3,9 +3,9 @@ import logging
 
 import time
 from pathlib import Path
-import re
 from typing import Optional, List
 
+import numpy as np
 from sqlalchemy import Table, Column, Integer, TEXT, MetaData, create_engine, text
 from sqlalchemy.orm import sessionmaker
 
@@ -257,7 +257,14 @@ class TireModelDatabase:
                     )
                 ).alias("combined_score")
             )
-            .sort("combined_score", descending=True)
+            .sort(
+                [
+                    "combined_score",
+                    pl.col("model_name").str.len_chars(),
+                    pl.col("brand_name").str.len_chars(),
+                ],
+                descending=[True, True, True],
+            )
             .limit(top_n)
         )
 
@@ -280,7 +287,14 @@ class TireModelDatabase:
                     )
                 ).alias("combined_score")
             )
-            .sort("combined_score", descending=True)
+            .sort(
+                [
+                    "combined_score",
+                    pl.col("model_name").str.len_chars(),
+                    pl.col("brand_name").str.len_chars(),
+                ],
+                descending=[True, True, True],
+            )
             .limit(top_n)
         )
 
