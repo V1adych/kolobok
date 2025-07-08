@@ -6,10 +6,10 @@ WORKDIR /app
 COPY requirements.txt .
 COPY external/ external/
 
-RUN pip install torch torchvision
-RUN pip install -r requirements.txt
-RUN pip install inference
-RUN pip install pillow==9.5.0 numpy==1.26
+RUN pip install torch torchvision --no-cache-dir
+RUN pip install -r requirements.txt --no-cache-dir
+RUN pip install inference --no-cache-dir
+RUN pip install pillow==9.5.0 numpy==1.26 --no-cache-dir
 
 COPY . .
 
