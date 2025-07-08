@@ -1,8 +1,8 @@
 import numpy as np
-
 import torch
 from torch import nn
 from torch.nn import functional as F
+import logging
 
 from torchvision.transforms import functional as VF, InterpolationMode
 
@@ -30,15 +30,21 @@ class SidewallSegmentator:
         config.num_labels = 1
 
         base_model = SegformerForSemanticSegmentation._from_config(config)
+        self.logger = logging.getLogger("sidewall_segmentator")
 
         self.model = SegformerWrapper(base_model)
-        self.model.load_state_dict(
-            torch.load(
-                self.config.segmentator_checkpoint,
-                map_location=self.config.device,
-                weights_only=True,
+        if self.config.segmentator_checkpoint:
+            self.model.load_state_dict(
+                torch.load(
+                    self.config.segmentator_checkpoint,
+                    map_location=self.config.device,
+                    weights_only=True,
+                )
             )
-        )
+        else:
+            self.logger.warning(
+                "Sidewall segmentator checkpoint not found, using random weights"
+            )
         self.model.to(self.config.device)
         self.model.eval()
 

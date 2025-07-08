@@ -1,4 +1,5 @@
 import os
+import logging
 
 import torch
 from torch import nn
@@ -9,6 +10,8 @@ from transformers import SegformerForSemanticSegmentation, SegformerConfig
 
 
 SEGFORMER_MODEL_NAME = "nvidia/segformer-b2-finetuned-ade-512-512"
+
+logger = logging.getLogger("thread_spikes_model_loader")
 
 
 class SegformerWrapper(nn.Module):
@@ -37,8 +40,13 @@ def get_spike_detector(ckpt_path: str):
     base_model = SegformerForSemanticSegmentation._from_config(config)
 
     model = SegformerWrapper(base_model)
+    if ckpt_path:
+        model.load_state_dict(
+            torch.load(ckpt_path, weights_only=True, map_location="cpu")
+        )
+    else:
+        logger.warning("Spike detector checkpoint not found, using random weights")
 
-    model.load_state_dict(torch.load(ckpt_path, weights_only=True, map_location="cpu"))
     model.eval()
 
     return model
@@ -48,7 +56,12 @@ def get_spike_classifier(ckpt_path: str):
     model = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
     model.fc = nn.Linear(1024, 3)
 
-    model.load_state_dict(torch.load(ckpt_path, weights_only=True, map_location="cpu"))
+    if ckpt_path:
+        model.load_state_dict(
+            torch.load(ckpt_path, weights_only=True, map_location="cpu")
+        )
+    else:
+        logger.warning("Spike classifier checkpoint not found, using random weights")
     model.eval()
 
     return model

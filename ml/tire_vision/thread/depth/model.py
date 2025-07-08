@@ -8,6 +8,9 @@ from torchvision.models import (
     efficientnet_b3,
     efficientnet_b7,
 )
+import logging
+
+logger = logging.getLogger("depth_estimator_model_loader")
 
 
 def get_swin_v2():
@@ -58,8 +61,11 @@ models = {
 
 def get_depth_estimator(model_name: str, checkpoint_path: str):
     model = models[model_name]()
-    model.load_state_dict(
-        torch.load(checkpoint_path, weights_only=True, map_location="cpu")
-    )
+    if checkpoint_path:
+        model.load_state_dict(
+            torch.load(checkpoint_path, weights_only=True, map_location="cpu")
+        )
+    else:
+        logger.warning("Depth estimator checkpoint not found, using random weights")
     model.eval()
     return model

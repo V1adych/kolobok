@@ -10,3 +10,4 @@ PyMySQL
 aiomysql
 openai
 polars
+rapidfuzz

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import os
-from typing import Literal, Tuple, List
+from typing import Literal, Tuple, List, Optional
 import warnings
 
 import torch
@@ -78,8 +78,8 @@ class SegmentationConfig:
 
 @dataclass
 class SpikePipelineConfig:
-    detector_checkpoint: str = os.environ["SPIKE_DETECTOR_CHECKPOINT"]
-    classifier_checkpoint: str = os.environ["SPIKE_CLASSIFIER_CHECKPOINT"]
+    detector_checkpoint: Optional[str] = os.environ.get("SPIKE_DETECTOR_CHECKPOINT")
+    classifier_checkpoint: Optional[str] = os.environ.get("SPIKE_CLASSIFIER_CHECKPOINT")
     device: str = DEVICE
     detection_threshold: float = 0.5
     erosion_iterations: int = 3
@@ -90,7 +90,7 @@ class SpikePipelineConfig:
 @dataclass
 class DepthEstimatorConfig:
     model_name: str = os.environ["DEPTH_ESTIMATOR_MODEL_NAME"]
-    checkpoint: str = os.environ["DEPTH_ESTIMATOR_CHECKPOINT"]
+    checkpoint: Optional[str] = os.environ.get("DEPTH_ESTIMATOR_CHECKPOINT")
     device: str = DEVICE
     resize_shape: Tuple[int, int] = (512, 512)
 
@@ -98,7 +98,9 @@ class DepthEstimatorConfig:
 @dataclass
 class SidewallSegmentatorConfig:
     hf_model_id: str = "nvidia/segformer-b2-finetuned-ade-512-512"
-    segmentator_checkpoint: str = os.environ["SIDEWALL_SEGMENTATOR_CHECKPOINT"]
+    segmentator_checkpoint: Optional[str] = os.environ.get(
+        "SIDEWALL_SEGMENTATOR_CHECKPOINT"
+    )
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
     device: str = DEVICE
