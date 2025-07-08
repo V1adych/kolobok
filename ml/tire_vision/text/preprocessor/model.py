@@ -26,10 +26,10 @@ class SidewallSegmentator:
     def __init__(self, config: SidewallSegmentatorConfig):
         self.config = config
 
-        config = SegformerConfig.from_pretrained(self.config.hf_model_id)
-        config.num_labels = 1
+        model_config = SegformerConfig.from_pretrained(self.config.hf_model_id)
+        model_config.num_labels = 1
 
-        base_model = SegformerForSemanticSegmentation._from_config(config)
+        base_model = SegformerForSemanticSegmentation._from_config(model_config)
         self.logger = logging.getLogger("sidewall_segmentator")
 
         self.model = SegformerWrapper(base_model)

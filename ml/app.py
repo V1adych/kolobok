@@ -7,16 +7,15 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from PIL import Image, UnidentifiedImageError
 import numpy as np
-from fastapi.responses import Response
+
+from utils import get_thread_stats, add_annotations, extract_tire_info
 
 import logging
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-
-from utils import get_thread_stats, add_annotations, extract_tire_info
-
 
 logger = logging.getLogger("app")
 

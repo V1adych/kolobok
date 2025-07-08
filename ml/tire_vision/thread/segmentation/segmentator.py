@@ -15,7 +15,7 @@ from detectron2.projects.deeplab import add_deeplab_config
 from huggingface_hub import hf_hub_download, login
 
 from tire_vision.thread.segmentation.coco_stuff import COCO_CATEGORIES
-from tire_vision.config import SegmentationConfig
+from tire_vision.config import SegmentatorConfig
 
 import logging
 
@@ -146,7 +146,7 @@ def setup(config_file: str, device: str):
 class SegmentationInferencer:
     def __init__(
         self,
-        config: SegmentationConfig,
+        config: SegmentatorConfig,
     ):
         self.config = config
         self.device = config.device

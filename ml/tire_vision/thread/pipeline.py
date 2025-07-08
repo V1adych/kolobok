@@ -7,7 +7,7 @@ from tire_vision.thread.segmentation.segmentator import SegmentationInferencer
 from tire_vision.thread.spikes.pipeline import SpikePipeline
 from tire_vision.thread.depth.pipeline import DepthEstimatorPipeline
 from tire_vision.config import (
-    SegmentationConfig,
+    SegmentatorConfig,
     SpikePipelineConfig,
     DepthEstimatorConfig,
 )
@@ -18,7 +18,7 @@ import logging
 class TireThreadPipeline:
     def __init__(
         self,
-        segmentation_config: SegmentationConfig,
+        segmentation_config: SegmentatorConfig,
         spikes_config: SpikePipelineConfig,
         depth_config: DepthEstimatorConfig,
     ):

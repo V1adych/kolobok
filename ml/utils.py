@@ -11,15 +11,15 @@ from tire_vision.config import TireVisionConfig, CLASS_MAPPING, CLASS_COLORS
 
 cfg = TireVisionConfig()
 thread_pipeline = TireThreadPipeline(
-    segmentation_config=cfg.segmentation,
-    spikes_config=cfg.spikes,
-    depth_config=cfg.depth,
+    segmentation_config=cfg.segmentation_config,
+    spikes_config=cfg.spike_pipeline_config,
+    depth_config=cfg.depth_estimator_config,
 )
 annotation_pipeline = TireAnnotationPipeline(
-    detector_config=cfg.tire_detector,
-    unwrapper_config=cfg.tire_unwrapper,
-    ocr_config=cfg.ocr,
-    index_config=cfg.tire_index,
+    detector_config=cfg.sidewall_segmentator_config,
+    unwrapper_config=cfg.sidewall_unwrapper_config,
+    ocr_config=cfg.ocr_config,
+    index_config=cfg.index_config,
 )
 
 

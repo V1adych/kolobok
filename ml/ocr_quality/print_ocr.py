@@ -175,6 +175,10 @@ def main():
         print(
             f"ABSOLUTE CORRECT: {absolute_correct}, MAX RATIO BRAND: {max_ratio_brand}, MAX RATIO MODEL: {max_ratio_model}"
         )
+        if absolute_correct == 0:
+            print(f"STRINGS:\n{strings}")
+            print(f"GT:\n{json.dumps(gt, indent=4)}")
+            print(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
 
         print("-" * 100)
         total_correct += absolute_correct

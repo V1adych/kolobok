@@ -48,7 +48,8 @@ response must include: ['215/50R17 95V', '215/50R17', '95V']
 string on tire: 'KAMA EURO-236' (brand and model, but you don't know which is which)
 response must include: ['KAMA EURO-236', 'KAMA', 'EURO', 'EURO-236', 'KAMA EURO', '236']
 
-Do not make up any information, return only what you can see"""
+The examples above are just examples, do not follow them strictly.
+Do not make up any information, return only what you can see."""
 
 OCR_PROMPT = """Your task is to extract text from the provided image(s) of a tire.
 Extract all visible text from the image(s) that might be related to tire information (model, brand, size)
@@ -67,7 +68,7 @@ Example of a valid response:
 
 
 @dataclass
-class SegmentationConfig:
+class SegmentatorConfig:
     device: str = DEVICE
     target: str = "wheel-tire-thread"
     vocab_aug_mode: Literal["COCO-stuff", "COCO-all", "none"] = "COCO-stuff"
@@ -124,7 +125,7 @@ class OCRConfig:
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-    providers_list: List[str] = field(default_factory=lambda: ["nebius"])
+    providers_list: List[str] = field(default_factory=lambda: ["nebius/fp8"])
     top_p: float = 0.9
     temperature: float = 0.7
     presence_penalty: float = 0
@@ -154,10 +155,10 @@ class IndexConfig:
 
 @dataclass
 class TireVisionConfig:
-    segmentation = SegmentationConfig()
-    spikes = SpikePipelineConfig()
-    depth = DepthEstimatorConfig()
-    tire_detector = SidewallSegmentatorConfig()
-    tire_unwrapper = SidewallUnwrapperConfig()
-    ocr = OCRConfig()
-    tire_index = IndexConfig()
+    segmentation_config = SegmentatorConfig()
+    spike_pipeline_config = SpikePipelineConfig()
+    depth_estimator_config = DepthEstimatorConfig()
+    sidewall_segmentator_config = SidewallSegmentatorConfig()
+    sidewall_unwrapper_config = SidewallUnwrapperConfig()
+    ocr_config = OCRConfig()
+    index_config = IndexConfig()

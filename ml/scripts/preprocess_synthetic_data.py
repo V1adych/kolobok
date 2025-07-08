@@ -9,7 +9,7 @@ from torchvision.io import read_image, write_png
 sys.path.append(str(Path(__file__).parent.parent))
 
 from tire_vision.thread.segmentation.segmentator import SegmentationInferencer
-from tire_vision.config import SegmentationConfig
+from tire_vision.config import SegmentatorConfig
 
 SRC_DIR = Path("data/dataset_synthetic")
 DEST_DIR = Path("data/thread/depth/synthetic")
@@ -28,7 +28,7 @@ def _get_image_and_label(path: Path) -> Tuple[torch.Tensor, float]:
 
 def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    cfg = SegmentationConfig(device=device)
+    cfg = SegmentatorConfig(device=device)
     segmentator = SegmentationInferencer(cfg)
 
     for image_path in SRC_DIR.iterdir():

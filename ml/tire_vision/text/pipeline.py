@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 import time
 from traceback import format_exc
+import json
 
 import numpy as np
 
@@ -74,9 +75,10 @@ class TireAnnotationPipeline:
         self.logger.info(f"OCRPipeline result:\n{_json_format(ocr_result)}")
 
         self.logger.info("Running IndexPipeline")
-        index_result = self.index.run(queries=ocr_result["strings"])
+        index_result = self.index.get_best_matches(ocr_result["strings"])
         self.logger.info(f"IndexPipeline result:\n{_json_format(index_result)}")
-        index_result.update(ocr_result)
+        for item in index_result:
+            item.update(ocr_result)
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"TireAnnotationPipeline completed in {latency:.4f} seconds")
