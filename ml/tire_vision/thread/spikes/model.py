@@ -4,7 +4,7 @@ import logging
 import torch
 from torch import nn
 from torchvision.transforms import functional as VF, InterpolationMode
-from torchvision.models import googlenet, GoogLeNet_Weights
+from torchvision.models import googlenet
 
 from transformers import SegformerForSemanticSegmentation, SegformerConfig
 
@@ -53,7 +53,7 @@ def get_spike_detector(ckpt_path: str):
 
 
 def get_spike_classifier(ckpt_path: str):
-    model = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
+    model = googlenet()
     model.fc = nn.Linear(1024, 3)
 
     if ckpt_path:
