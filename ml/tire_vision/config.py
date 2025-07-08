@@ -1,10 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
-from typing import Literal, Tuple, Optional
+from typing import Literal, Tuple, List
 import warnings
 
 import torch
-import cv2
+
 
 DEVICE = os.environ["DEVICE"]
 if DEVICE.startswith("cuda") and not torch.cuda.is_available():
@@ -118,29 +118,36 @@ class SidewallUnwrapperConfig:
 @dataclass
 class OCRConfig:
     model_name: str = "qwen/qwen2.5-vl-72b-instruct"
-    # model_name: str = "google/gemini-2.5-pro"
-    # model_name: str = "openai/gpt-4o-mini"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
+    providers_list: List[str] = field(default_factory=lambda: ["nebius"])
     top_p: float = 0.9
     temperature: float = 0.7
     presence_penalty: float = 0
     frequency_penalty: float = 0
-    max_completion_tokens: int = 4096
+    max_completion_tokens: int = 1024
 
 
 @dataclass
 class IndexConfig:
-    db_host: str = os.environ.get("DB_HOST", "db")
+    db_host: str = os.environ.get("DB_HOST", "mysql_db")
     db_port: int = int(os.environ.get("DB_PORT", "3306"))
     db_name: str = os.environ["MYSQL_DATABASE"]
     db_user: str = "root"
     db_password: str = os.environ["MYSQL_ROOT_PASSWORD"]
     table_name: str = "models"
-    similarity_threshold: float = 0.5
-    max_query_results: int = 3
+    max_query_results: int = 5
+    table_cache_path: str = "models.parquet"
+    table_cache_ttl_seconds: int = 3600
+    similarity_metric: Literal[
+        "product",
+        "arithmetic_mean",
+        "harmonic_mean",
+        "geometric_mean",
+        "euclidean",
+    ] = "harmonic_mean"
 
 
 @dataclass

@@ -22,7 +22,7 @@ def main():
     for img_path in tqdm(list(input_dir.iterdir())):
         img = cv2.imread(str(img_path))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        mask = model.detect(img)
+        mask = model.forward(img)
         unwrapped = unwrapper.get_unwrapped_tire(img, mask)
         unwrapped = cv2.cvtColor(unwrapped, cv2.COLOR_RGB2BGR)
         output_dir.mkdir(parents=True, exist_ok=True)

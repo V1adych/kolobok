@@ -43,7 +43,7 @@ class SidewallSegmentator:
         self.model.eval()
 
     @torch.no_grad()
-    def detect(self, image: np.ndarray):
+    def forward(self, image: np.ndarray):
         torch_image = (
             torch.from_numpy(image)
             .permute(2, 0, 1)

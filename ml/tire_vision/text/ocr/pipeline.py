@@ -1,14 +1,13 @@
 import base64
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from PIL import Image
 import io
 from traceback import format_exc
 import re
 
 import numpy as np
-import cv2
 from openai import OpenAI, AsyncOpenAI
 from tire_vision.config import OCRConfig
 
@@ -32,63 +31,10 @@ class OCRPipeline:
         self.logger = logging.getLogger("ocr")
         self.logger.info("TireOCR module initialized")
 
-        self.few_shot_examples = []
-        # self.few_shot_examples = self._load_few_shot_examples()
-
-    def _load_few_shot_examples(self) -> List[Dict[str, Any]]:
-        examples = []
-
-        if not self.examples_dir.exists():
-            self.logger.warning(f"Examples directory not found: {self.examples_dir}")
-            return examples
-
-        prompt_files = sorted(self.examples_dir.glob("prompt*.txt"))
-
-        for prompt_file in prompt_files:
-            try:
-                number = prompt_file.stem.replace("prompt", "")
-                answer_file = self.examples_dir / f"answer{number}.json"
-                original_image_file = self.examples_dir / f"original{number}.png"
-                unwrapped_image_file = self.examples_dir / f"unwrapped{number}.png"
-
-                if not answer_file.exists() or not original_image_file.exists():
-                    continue
-
-                prompt_text = prompt_file.read_text().strip()
-                answer_text = answer_file.read_text().strip()
-
-                example_images = []
-
-                original_img = cv2.imread(str(original_image_file))
-                if original_img is not None:
-                    original_img = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)
-                    example_images.append(self._prepare_image(original_img))
-
-                # if unwrapped_image_file.exists():
-                #     unwrapped_img = cv2.imread(str(unwrapped_image_file))
-                #     if unwrapped_img is not None:
-                #         unwrapped_img = cv2.cvtColor(unwrapped_img, cv2.COLOR_BGR2RGB)
-                #         example_images.append(self._prepare_image(unwrapped_img))
-
-                if example_images:
-                    examples.append(
-                        {
-                            "user": prompt_text,
-                            "assistant": answer_text,
-                            "images": example_images,
-                        }
-                    )
-
-            except Exception as e:
-                self.logger.warning(f"Failed to load example from {prompt_file}: {e}")
-
-        self.logger.info(f"Loaded {len(examples)} few-shot examples")
-        return examples
-
     def extract_tire_info(
         self,
-        images: list[np.ndarray],
-    ) -> Dict[str, list[str]]:
+        images: List[np.ndarray],
+    ) -> Dict[str, List[str]]:
         file_inputs = [self._prepare_image(img) for img in images]
 
         try:
@@ -105,8 +51,8 @@ class OCRPipeline:
 
     async def async_extract_tire_info(
         self,
-        images: list[np.ndarray],
-    ) -> Dict[str, list[str]]:
+        images: List[np.ndarray],
+    ) -> Dict[str, List[str]]:
         file_inputs = [self._prepare_image(img) for img in images]
 
         try:
@@ -151,17 +97,6 @@ class OCRPipeline:
 
         messages.append({"role": "system", "content": self.config.system_prompt})
 
-        for example in self.few_shot_examples:
-            user_content = [{"type": "text", "text": example["user"]}]
-
-            for image_data in example["images"]:
-                user_content.append(
-                    {"type": "image_url", "image_url": {"url": image_data}}
-                )
-
-            messages.append({"role": "user", "content": user_content})
-            messages.append({"role": "assistant", "content": example["assistant"]})
-
         content = [
             {"type": "text", "text": user_prompt},
         ]
@@ -182,11 +117,8 @@ class OCRPipeline:
 
         return messages
 
-    def _get_llm_response(self, file_inputs: list[str], user_prompt: str) -> str:
-        result = ""
-        messages = self._build_messages(file_inputs, user_prompt)
-
-        stream = self.client.chat.completions.create(
+    def _get_request_kwargs(self, messages: List[dict]) -> Dict[str, Any]:
+        return dict(
             model=self.config.model_name,
             messages=messages,
             stream=True,
@@ -195,7 +127,15 @@ class OCRPipeline:
             max_tokens=self.config.max_completion_tokens,
             presence_penalty=self.config.presence_penalty,
             frequency_penalty=self.config.frequency_penalty,
-            extra_body={"provider": {"only": ["nebius"]}},
+            extra_body={"provider": {"only": self.config.providers_list}},
+        )
+
+    def _get_llm_response(self, file_inputs: List[str], user_prompt: str) -> str:
+        result = ""
+        messages = self._build_messages(file_inputs, user_prompt)
+
+        stream = self.client.chat.completions.create(
+            **self._get_request_kwargs(messages)
         )
 
         for chunk in stream:
@@ -206,21 +146,13 @@ class OCRPipeline:
         return result
 
     async def _async_get_llm_response(
-        self, file_inputs: list[str], user_prompt: str
+        self, file_inputs: List[str], user_prompt: str
     ) -> str:
         result = ""
         messages = self._build_messages(file_inputs, user_prompt)
 
         stream = await self.async_client.chat.completions.create(
-            model=self.config.model_name,
-            messages=messages,
-            stream=True,
-            temperature=self.config.temperature,
-            top_p=self.config.top_p,
-            max_tokens=self.config.max_completion_tokens,
-            presence_penalty=self.config.presence_penalty,
-            frequency_penalty=self.config.frequency_penalty,
-            extra_body={"provider": {"only": ["nebius"]}},
+            **self._get_request_kwargs(messages)
         )
 
         async for chunk in stream:
@@ -240,8 +172,9 @@ class OCRPipeline:
 
         return {
             "strings": tire_info.get("strings", []),
+            "tire_size": tire_info.get("tire_size", ""),
         }
 
     def _get_default_response(self) -> Dict[str, list[str]]:
         self.logger.info("Falling back to default values")
-        return {"strings": []}
+        return {"strings": [], "tire_size": ""}

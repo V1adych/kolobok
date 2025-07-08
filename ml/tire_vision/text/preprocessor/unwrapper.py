@@ -78,3 +78,6 @@ class SidewallUnwrapper:
         lab_image[:, :, 0] = self.clahe.apply(lab_image[:, :, 0])
 
         return cv2.cvtColor(lab_image, cv2.COLOR_LAB2RGB)
+
+    def forward(self, image: np.ndarray, mask: np.ndarray):
+        return self.get_unwrapped_tire(image, mask)

@@ -1,7 +1,7 @@
 services:
-  db:
-    build: ./db
-    container_name: db
+  mysql_db:
+    build: ./mysql_db
+    container_name: mysql_db
     environment:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
@@ -22,7 +22,7 @@ services:
         - envfile
     container_name: ml
     depends_on:
-      - db
+      - mysql_db
     environment:
       - API_TOKEN=${API_TOKEN}
       - HF_TOKEN=${HF_TOKEN}
@@ -54,6 +54,7 @@ services:
 
 volumes:
   db_data:
+  pg_data:
 
 secrets:
   envfile:
