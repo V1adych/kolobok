@@ -7,12 +7,6 @@ from PIL import Image
 import time
 from functools import wraps
 
-#
-# from dotenv import load_dotenv
-
-# load_dotenv()
-#
-
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -30,7 +24,6 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-# APP_URL = "0.0.0.0:8000"
 APP_URL = "ml:8000"
 API_TOKEN = os.environ["API_TOKEN"]
 
@@ -41,31 +34,38 @@ TIRE_INFO_EXTRACTION_URL = f"http://{APP_URL}/api/v1/extract_information"
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
-logger = logging.getLogger('tg-bot')
+logger = logging.getLogger("tg-bot")
+
 
 class DropHTTPReqFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        # return False to drop the record
         return "HTTP Request:" not in record.getMessage()
-    
+
+
 handler = logging.getLogger().handlers[0]
 handler.addFilter(DropHTTPReqFilter())
 
-ALLOWED_USERS = os.environ["ALLOWED_USERS"].split(',')
+ALLOWED_USERS = os.environ["ALLOWED_USERS"].split(",")
+
 
 def restricted(func):
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+    async def wrapper(
+        update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs
+    ):
         user_id = update.effective_user.id
         if str(user_id) not in ALLOWED_USERS:
             # Optionally log attempt
             logger.info(f"Unauthorized access denied for {user_id}")
-            await update.message.reply_text("У вас нет доступа к функциям этого бота. Обратитесь к администратору")
+            await update.message.reply_text(
+                "У вас нет доступа к функциям этого бота. Обратитесь к администратору"
+            )
             return  # do not call the handler
         return await func(update, context, *args, **kwargs)
+
     return wrapper
 
-# Conversation states
+
 (
     PASSWORD,
     INCORRECT_PASSWORD,
@@ -100,7 +100,6 @@ def build_main_menu() -> InlineKeyboardMarkup:
 
 async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Sends the main menu as a new message."""
-    # Acknowledge any callback so the “loading…” spinner goes away
     if update.callback_query:
         await update.callback_query.answer()
         chat_id = update.callback_query.message.chat_id
@@ -112,11 +111,13 @@ async def send_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
     return MENU
 
+
 @restricted
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     username = update.effective_user.username
-    logger.info(f'User {username} started conversation')
+    logger.info(f"User {username} started conversation")
     return await send_main_menu(update, context)
+
 
 async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle main‐menu button presses."""
@@ -125,14 +126,12 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
 
     if query.data == CB_SIDE:
-        logging.info(f'User {username} picked OCR')
-        await query.edit_message_text(
-            text="Загрузите фотографию боковой стороны шины"
-        )
+        logging.info(f"User {username} picked OCR")
+        await query.edit_message_text(text="Загрузите фотографию боковой стороны шины")
         return SIDE_PHOTO
 
     if query.data == CB_TREAD:
-        logging.info(f'User {username} picked tread')
+        logging.info(f"User {username} picked tread")
         await query.edit_message_text(
             text="Загрузите фотографию протектора шины",
         )
@@ -145,9 +144,8 @@ async def menu_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     start = time.perf_counter()
     username = update.effective_user.username
-    logger.info(f'User {username} uploaded photo for OCR')
+    logger.info(f"User {username} uploaded photo for OCR")
     await update.message.reply_text("Обработка фотографии...")
-
 
     photo = update.message.photo[-1]
     tg_file = await photo.get_file()
@@ -155,35 +153,79 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     bio = io.BytesIO()
     await tg_file.download_to_memory(out=bio)
     bio.seek(0)
-    logger.info(f'Successfully downloaded photo of {username} to memory')
+    logger.info(f"Successfully downloaded photo of {username} to memory")
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
-    header = {"Authorization": f'Bearer {API_TOKEN}'}
+    header = {"Authorization": f"Bearer {API_TOKEN}"}
     payload = {"image": b64}
 
-    logger.info(f'Posted response for OCR for {username}')
+    logger.info(f"Posted response for OCR for {username}")
     resp = requests.post(TIRE_INFO_EXTRACTION_URL, headers=header, json=payload)
     resp.raise_for_status()
 
     data = resp.json()
-    logger.info(f'User {username} got the OCR result: {resp.json().keys()}')
+    logger.info(f"User {username} got the OCR result with {len(data)} matches")
 
-    manufacturer = data.get("manufacturer") or "Не определено"
-    model = data.get("model") or "Не определено"
-    tire_size = data.get("tire_size_string") or "Не определено"
+    if not data:
+        await update.message.reply_text(
+            "❌ **Результат не найден**\n\n"
+            "К сожалению, не удалось определить марку и модель шины на фотографии.\n\n"
+            "💡 **Возможные причины:**\n"
+            "• Низкое качество фотографии\n"
+            "• Плохое освещение\n"
+            "• Текст на шине нечёткий или повреждён\n"
+            "• Неподдерживаемая марка шины\n\n"
+            "📝 Попробуйте загрузить фото лучшего качества или введите данные вручную.",
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "✏️ Ввести вручную", callback_data=CB_SIDE_CUSTOM
+                        )
+                    ],
+                    [InlineKeyboardButton("🏠 В меню", callback_data=CB_MENU)],
+                ]
+            ),
+            parse_mode="Markdown",
+        )
+        return SIDE_RESULT
 
-    logger.info(f'OCR result for {username}: {manufacturer} {model} {tire_size}')
+    message_parts = ["🔍 **Найденные совпадения:**\n"]
+
+    for i, match in enumerate(data, 1):
+        brand = match.get("brand_name", "Не определено")
+        model = match.get("model_name", "Не определено")
+        tire_size = match.get("tire_size", "Не определено")
+        score = match.get("combined_score", 0)
+
+        confidence_emoji = "🟢" if score > 0.8 else "🟡" if score > 0.6 else "🔴"
+        confidence_text = (
+            "Высокая" if score > 0.8 else "Средняя" if score > 0.6 else "Низкая"
+        )
+
+        message_parts.append(
+            f"{confidence_emoji} **Результат {i}:**\n"
+            f"Линейка (Брэнд): {brand}\n"
+            f"Модель: {model}\n"
+            f"Размер: {tire_size}\n"
+            f"Точность: {confidence_text} ({score:.1%})\n"
+        )
+
+    message_parts.append("📝 Выберите подходящий результат или введите свой вариант:")
+
+    logger.info(f"OCR result for {username}: {len(data)} matches found")
     await update.message.reply_text(
-        f"Производитель: {manufacturer}\nМодель: {model}\nРазмер: {tire_size}",
+        "\n".join(message_parts),
         reply_markup=InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("OK", callback_data=CB_SIDE_OK)],
-                [InlineKeyboardButton("Свой вариант", callback_data=CB_SIDE_CUSTOM)],
+                [InlineKeyboardButton("✅ Подходит", callback_data=CB_SIDE_OK)],
+                [InlineKeyboardButton("✏️ Свой вариант", callback_data=CB_SIDE_CUSTOM)],
             ]
         ),
+        parse_mode="Markdown",
     )
     end = time.perf_counter()
-    logger.info(f'OCR for {username} complete in {end - start}')
+    logger.info(f"OCR for {username} complete in {end - start}")
     return SIDE_RESULT
 
 
@@ -194,15 +236,22 @@ async def side_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
 
     if query.data == CB_SIDE_OK:
-        logger.info(f'User {username} agreed with OCR result')
-        await context.bot.send_message(query.message.chat_id, "Хорошего дня!")
+        logger.info(f"User {username} agreed with OCR result")
+        await context.bot.send_message(
+            query.message.chat_id,
+            "✅ **Результат принят!**\n\nСпасибо за подтверждение. Данные сохранены.",
+            parse_mode="Markdown",
+        )
         return await send_main_menu(update, context)
 
     # CB_SIDE_CUSTOM
-    logger.info(f'User {username} edit the OCR result')
+    logger.info(f"User {username} edit the OCR result")
     await context.bot.send_message(
         query.message.chat_id,
-        "Введите свой вариант производителя, модели и размера шины:",
+        "✏️ **Введите данные вручную**\n\n"
+        "📋 **Формат:**\nПроизводитель Модель Размер\n\n"
+        "💡 **Пример:**\nNokian Hakka Blue 225/60R17",
+        parse_mode="Markdown",
     )
     return SIDE_CUSTOM
 
@@ -211,8 +260,11 @@ async def side_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     """Handle free‐text for side‐view."""
     username = update.effective_user.username
     user_text = update.message.text
-    logging.info(f'User {username} edits OCR result: {user_text}')
-    await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
+    logging.info(f"User {username} edits OCR result: {user_text}")
+    await update.message.reply_text(
+        "🙏 **Спасибо за коррекцию!**\n\nБлагодаря вам модель станет точнее.",
+        parse_mode="Markdown",
+    )
     return await send_main_menu(update, context)
 
 
@@ -220,7 +272,7 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     """Process tread photo"""
     start = time.perf_counter()
     username = update.effective_user.username
-    logger.info(f'User {username} uploaded photo for tread')
+    logger.info(f"User {username} uploaded photo for tread")
     await update.message.reply_text("Обработка фотографии...")
 
     photo = update.message.photo[-1]
@@ -229,27 +281,38 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     bio = io.BytesIO()
     await tg_file.download_to_memory(out=bio)
     bio.seek(0)
-    logger.info(f'Successfully downloaded photo of {username} to memory')
+    logger.info(f"Successfully downloaded photo of {username} to memory")
 
     b64 = base64.b64encode(bio.read()).decode("utf-8")
-    header = {"Authorization": f'Bearer {API_TOKEN}'}
+    header = {"Authorization": f"Bearer {API_TOKEN}"}
     payload = {"image": b64, "token": API_TOKEN}
 
-    logger.info(f'Posted response for tread for {username}')
+    logger.info(f"Posted response for tread for {username}")
     resp = requests.post(TREAD_ANALYSIS_URL, headers=header, json=payload)
     resp.raise_for_status()
 
     data = resp.json()
-    logger.info(f'User {username} got the tread result: {resp.json().keys()}')
-    #logger.info(data)
+    logger.info(f"User {username} got the tread result: {resp.json().keys()}")
+    # logger.info(data)
 
-    if resp.json()['success'] == 0:
-        await update.message.reply_text(f"Произошла ошибка при обработке фотографии: {resp.json()['detail']}",
-                                        reply_markup=InlineKeyboardMarkup(
-                                        [
-                                            [InlineKeyboardButton("В меню", callback_data=CB_MENU)],
-                                        ]
-                                    ),)
+    if resp.json()["success"] == 0:
+        error_detail = resp.json().get("detail", "Неизвестная ошибка")
+        await update.message.reply_text(
+            f"❌ **Ошибка анализа протектора**\n\n"
+            f"Не удалось обработать фотографию протектора.\n\n"
+            f"🔍 **Детали ошибки:**\n{error_detail}\n\n"
+            f"💡 **Попробуйте:**\n"
+            f"• Сделать фото лучшего качества\n"
+            f"• Убедиться, что протектор хорошо виден\n"
+            f"• Улучшить освещение\n"
+            f"• Избегать бликов и теней",
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [InlineKeyboardButton("🏠 В меню", callback_data=CB_MENU)],
+                ]
+            ),
+            parse_mode="Markdown",
+        )
         return MENU
 
     tread_depth = data["thread_depth"]
@@ -266,20 +329,56 @@ async def tread_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     bio.seek(0)
     await update.message.reply_photo(bio)
 
-    logger.info(f'Tread detection result for {username}: tread depth: {tread_depth:.2f}, bad: {num_bad}, good: {num_good}')
+    logger.info(
+        f"Tread detection result for {username}: tread depth: {tread_depth:.2f}, bad: {num_bad}, good: {num_good}"
+    )
+
+    total_spikes = len(spikes)
+    good_percentage = (num_good / total_spikes * 100) if total_spikes > 0 else 0
+    bad_percentage = (num_bad / total_spikes * 100) if total_spikes > 0 else 0
+
+    # Determine emoji based on condition
+    if tread_depth >= 4.0:
+        depth_emoji = "✅"
+    elif tread_depth >= 2.0:
+        depth_emoji = "⚠️"
+    else:
+        depth_emoji = "❌"
+
+    if bad_percentage <= 10:
+        spike_emoji = "✅"
+    elif bad_percentage <= 30:
+        spike_emoji = "⚠️"
+    else:
+        spike_emoji = "❌"
+
+    formatted_message = (
+        f"📊 **Результаты анализа протектора:**\n\n"
+        f"{depth_emoji} **Глубина протектора:** {tread_depth:.2f} мм\n\n"
+        f"{spike_emoji} **Анализ шипов:**\n"
+        f"Всего шипов: {total_spikes}\n"
+        f"Хорошие: {num_good} ({good_percentage:.1f}%)\n"
+        f"Поврежденные: {num_bad} ({bad_percentage:.1f}%)"
+    )
+
+    # Add critical warnings only when necessary
+    if tread_depth < 1.6:
+        formatted_message += "\n\n❌ **Требуется немедленная замена!**"
+    elif tread_depth < 2.0 or bad_percentage > 30:
+        formatted_message += "\n\n⚠️ **Рекомендуется замена в ближайшее время**"
+
     await update.message.reply_text(
-        f"Глубина протектора: {tread_depth:.2f}\n"
-        + f"Количество плохих шипов: {num_bad}\n"
-        + f"Количество хороших шипов: {num_good}",
+        formatted_message,
         reply_markup=InlineKeyboardMarkup(
             [
-                [InlineKeyboardButton("OK", callback_data=CB_TREAD_OK)],
-                [InlineKeyboardButton("Свой вариант", callback_data=CB_TREAD_CUSTOM)],
+                [InlineKeyboardButton("✅ Принято", callback_data=CB_TREAD_OK)],
+                [InlineKeyboardButton("✏️ Свой вариант", callback_data=CB_TREAD_CUSTOM)],
             ]
         ),
+        parse_mode="Markdown",
     )
     end = time.perf_counter()
-    logger.info(f'Tread for {username} complete in {end - start}')
+    logger.info(f"Tread for {username} complete in {end - start}")
     return TREAD_RESULT
 
 
@@ -290,15 +389,25 @@ async def tread_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await query.answer()
 
     if query.data == CB_TREAD_OK:
-        logger.info(f'User {username} agreed with tread result')
-        await context.bot.send_message(query.message.chat_id, "Хорошего дня!")
+        logger.info(f"User {username} agreed with tread result")
+        await context.bot.send_message(
+            query.message.chat_id,
+            "✅ **Анализ завершён!**\n\nСпасибо за использование бота. Хорошего дня!",
+            parse_mode="Markdown",
+        )
         return await send_main_menu(update, context)
 
     # CB_TREAD_CUSTOM
-    logger.info(f'User {username} edits tread result')
+    logger.info(f"User {username} edits tread result")
     await context.bot.send_message(
         query.message.chat_id,
-        "Введите свой вариант глубины протектора и количества шин:",
+        "✏️ **Введите свои данные**\n\n"
+        "📋 **Укажите:**\n"
+        "• Глубина протектора (мм)\n"
+        "• Количество хороших шипов\n"
+        "• Количество поврежденных шипов\n\n"
+        "💡 **Пример:**\n3.5 мм, хорошие: 45, плохие: 5",
+        parse_mode="Markdown",
     )
     return TREAD_CUSTOM
 
@@ -307,8 +416,11 @@ async def tread_custom(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     """Handle free‐text for tread."""
     user_text = update.message.text
     username = update.effective_user.username
-    logger.info(f'{username} edit for tread: {user_text}')
-    await update.message.reply_text("Спасибо! Благодаря вам модель станет лучше")
+    logger.info(f"{username} edit for tread: {user_text}")
+    await update.message.reply_text(
+        "🙏 **Спасибо за коррекцию!**\n\nБлагодаря вам модель станет лучше.",
+        parse_mode="Markdown",
+    )
     return await send_main_menu(update, context)
 
 
@@ -316,7 +428,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Handle /cancel to end conversation."""
     username = update.effective_user.username
     await update.message.reply_text("До свидания!")
-    logger.info(f'User {username} ended the conversation')
+    logger.info(f"User {username} ended the conversation")
     return ConversationHandler.END
 
 

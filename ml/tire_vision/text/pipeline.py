@@ -77,8 +77,9 @@ class TireAnnotationPipeline:
         self.logger.info("Running IndexPipeline")
         index_result = self.index.get_best_matches(ocr_result["strings"])
         self.logger.info(f"IndexPipeline result:\n{_json_format(index_result)}")
+
         for item in index_result:
-            item.update(ocr_result)
+            item["tire_size"] = ocr_result["tire_size"]
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"TireAnnotationPipeline completed in {latency:.4f} seconds")

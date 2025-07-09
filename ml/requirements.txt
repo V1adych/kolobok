@@ -11,3 +11,5 @@ aiomysql
 openai
 polars
 rapidfuzz
+requests[socks]
+httpx[socks]

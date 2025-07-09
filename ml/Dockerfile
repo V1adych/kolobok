@@ -8,7 +8,6 @@ COPY external/ external/
 
 RUN pip install torch torchvision --no-cache-dir
 RUN pip install -r requirements.txt --no-cache-dir
-RUN pip install inference --no-cache-dir
 RUN pip install pillow==9.5.0 numpy==1.26 --no-cache-dir
 
 COPY . .

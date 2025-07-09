@@ -13,16 +13,18 @@ from utils import get_thread_stats, add_annotations, extract_tire_info
 import logging
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger("app")
-
 app = FastAPI()
 bearer_scheme = HTTPBearer()
 
 API_TOKEN = os.environ["API_TOKEN"]
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True,
+)
+
+logger = logging.getLogger("app")
 
 
 def verify_token(
