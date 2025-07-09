@@ -205,7 +205,7 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
         message_parts.append(
             f"{confidence_emoji} **Результат {i}:**\n"
-            f"Линейка (Брэнд): {brand}\n"
+            f"Линейка (Бренд): {brand}\n"
             f"Модель: {model}\n"
             f"Размер: {tire_size}\n"
             f"Точность: {confidence_text} ({score:.1%})\n"
