@@ -26,6 +26,21 @@ def main():
 
     print(result)
 
+    strings = [
+        "Nokian",
+        "TYRES",
+        "Hakka Blue 2 SUV",
+        "Hakka Blue 2",
+        "Hakka Blue",
+        "2 SUV",
+        "225/60R17",
+        "95H",
+        "225/60R17 95H"
+    ]
+
+    result = pipeline.index.get_best_matches(strings)
+    print(result)
+
 
 if __name__ == "__main__":
     main()

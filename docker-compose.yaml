@@ -22,7 +22,8 @@ services:
         - envfile
     container_name: ml
     depends_on:
-      - mysql_db
+      mysql_db:
+        condition: service_healthy
     environment:
       - API_TOKEN=${API_TOKEN}
       - HF_TOKEN=${HF_TOKEN}
