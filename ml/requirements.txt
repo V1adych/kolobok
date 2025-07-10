@@ -13,3 +13,4 @@ polars
 rapidfuzz
 requests[socks]
 httpx[socks]
+cryptography

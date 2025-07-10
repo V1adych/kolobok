@@ -1,4 +1,16 @@
 services:
+  tor:
+    profiles:
+      - proxy
+    image: dperson/torproxy
+    container_name: tor
+    restart: unless-stopped
+    ports:
+      - "9050:9050"   
+      - "8118:8118"   
+    networks:
+      - proxy
+
   mysql_db:
     build: ./mysql_db
     container_name: mysql_db
@@ -24,6 +36,7 @@ services:
     depends_on:
       mysql_db:
         condition: service_healthy
+      
     environment:
       - API_TOKEN=${API_TOKEN}
       - HF_TOKEN=${HF_TOKEN}
@@ -40,6 +53,9 @@ services:
       - DB_PORT=${DB_PORT}
     ports:
       - "8000:8000"
+    networks:
+      - proxy
+      - default
 
   tg:
     build: ./tg
@@ -54,8 +70,10 @@ services:
 
 volumes:
   db_data:
-  pg_data:
 
 secrets:
   envfile:
     file: .env
+
+networks:
+  proxy: {}
