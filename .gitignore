@@ -25,3 +25,4 @@ vis
 *_db/*.csv
 *.parquet
 *.pkl
+.DS_Store
