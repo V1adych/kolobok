@@ -1,6 +1,7 @@
 services:
   mysql_db:
     build: ./mysql_db
+    image: v1adych/kolobok:mysql_db-latest
     container_name: mysql_db
     environment:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
@@ -20,6 +21,7 @@ services:
       context: ./ml
       secrets:
         - envfile
+    image: v1adych/kolobok:ml-latest
     container_name: ml
     depends_on:
       mysql_db:
@@ -43,6 +45,7 @@ services:
 
   tg:
     build: ./tg
+    image: v1adych/kolobok:tg-latest
     container_name: tg
     depends_on:
       - ml

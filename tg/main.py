@@ -164,9 +164,15 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     resp.raise_for_status()
 
     data = resp.json()
-    logger.info(f"User {username} got the OCR result with {len(data)} matches")
 
-    if not data:
+    # Extract the index results from the new response format
+    index_results = data.get("index_results", [])
+    raw_strings = data.get("strings", [])
+    tire_size = data.get("tire_size", "Не определено")
+
+    logger.info(f"User {username} got the OCR result with {len(index_results)} matches")
+
+    if not index_results:
         await update.message.reply_text(
             "❌ **Результат не найден**\n\n"
             "К сожалению, не удалось определить марку и модель шины на фотографии.\n\n"
@@ -192,10 +198,18 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     message_parts = ["🔍 **Найденные совпадения:**\n"]
 
-    for i, match in enumerate(data, 1):
+    # Find the maximum confidence score
+    max_confidence = (
+        max(match.get("combined_score", 0) for match in index_results)
+        if index_results
+        else 0
+    )
+
+    for i, match in enumerate(index_results, 1):
         brand = match.get("brand_name", "Не определено")
         model = match.get("model_name", "Не определено")
-        tire_size = match.get("tire_size", "Не определено")
+        # Use the tire_size from the top-level response instead of individual matches
+        match_tire_size = tire_size
         score = match.get("combined_score", 0)
 
         confidence_emoji = "🟢" if score > 0.8 else "🟡" if score > 0.6 else "🔴"
@@ -207,13 +221,19 @@ async def side_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             f"{confidence_emoji} **Результат {i}:**\n"
             f"Линейка (Бренд): {brand}\n"
             f"Модель: {model}\n"
-            f"Размер: {tire_size}\n"
+            f"Размер: {match_tire_size}\n"
             f"Точность: {confidence_text} ({score:.1%})\n"
         )
 
+    if max_confidence < 0.8 and raw_strings:
+        formatted_strings = ", ".join(f'"{string}"' for string in raw_strings)
+        message_parts.append(f"\n🔍 **Сырые OCR данные:**\n`{formatted_strings}`\n")
+
     message_parts.append("📝 Выберите подходящий результат или введите свой вариант:")
 
-    logger.info(f"OCR result for {username}: {len(data)} matches found")
+    logger.info(
+        f"OCR result for {username}: {len(index_results)} matches found, max confidence: {max_confidence:.3f}"
+    )
     await update.message.reply_text(
         "\n".join(message_parts),
         reply_markup=InlineKeyboardMarkup(
