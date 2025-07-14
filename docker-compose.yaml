@@ -1,15 +1,15 @@
 services:
-  tor:
-    profiles:
-      - proxy
-    image: dperson/torproxy
-    container_name: tor
-    restart: unless-stopped
-    ports:
-      - "9050:9050"   
-      - "8118:8118"   
-    networks:
-      - proxy
+  # tor:
+  #   profiles:
+  #     - proxy
+  #   image: dperson/torproxy
+  #   container_name: tor
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9050:9050"   
+  #     - "8118:8118"   
+  #   networks:
+  #     - proxy
 
   mysql_db:
     build: ./mysql_db
