@@ -36,7 +36,7 @@ def get_cached_results(
         with open(pkl_path, "rb") as f:
             return pkl.load(f)
 
-    logging.info(f"No cached results found, processing from scratch")
+    logging.info("No cached results found, processing from scratch")
     results = []
 
     for img_path in tqdm(sorted(list(input_dir.iterdir()))):
@@ -116,75 +116,87 @@ def main():
     input_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations")
     gt_paths = Path("/Users/n-zagainov/kolobok/ml/data/annotations_processed")
 
-    results = get_cached_ocr_results(
-        pkl_path="ocr_results.pkl",
+    results = get_cached_results(
+        pkl_path="results.pkl", 
+        segmentator=model,
+        unwrapper=unwrapper,
+        input_dir=input_dir,
     )
 
-    joined_table = (
-        db.table.filter(pl.col("parent_id") != 0)
-        .join(
-            db.table.filter(pl.col("parent_id") == 0),
-            left_on="parent_id",
-            right_on="id",
-            how="left",
-            suffix="_right",
-        )
-        .select(
-            pl.col("id").alias("model_id"),
-            pl.col("name").alias("model_name"),
-            pl.col("parent_id").alias("brand_id"),
-            pl.col("name_right").alias("brand_name"),
-        )
-    )
-    num_samples = 0
-    total_correct = 0
     for result in results:
-        img_path = result["img_path"]
-        gt_path = gt_paths / f"{Path(img_path).stem}.json"
-        strings = result["ocr_result"]["strings"]
-        gt = read_json(gt_path)
-        if gt["model"] is None or gt["brand"] is None:
-            continue
-        gt = joined_table.filter(
-            pl.col("model_id") == int(gt["model"]),
-            pl.col("brand_id") == int(gt["brand"]),
-        ).to_dicts()[0]
+        img_path = Path(result["img_path"])
+        img_name = img_path.stem
+        Path("/Users/n-zagainov/kolobok/ml/data/annotations_unwrapped").mkdir(parents=True, exist_ok=True)
+        save_path = Path("/Users/n-zagainov/kolobok/ml/data/annotations_unwrapped") / f"{img_name}.png"
+        second_image = result["images"][1]
+        cv2.imwrite(str(save_path), second_image)
 
-        index_results = index.get_best_matches(strings)
-        index_results = [
-            {
-                k: item[k]
-                for k in [
-                    "model_id",
-                    "model_name",
-                    "brand_id",
-                    "brand_name",
-                    "combined_score",
-                ]
-            }
-            for item in index_results
-        ]
 
-        print(f"FILES: {img_path}, {gt_path}")
-        # logging.info(f"GT:\n{json.dumps(gt, indent=4)}")
-        # logging.info(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
-        check_results = check_correct(gt, index_results)
-        absolute_correct = check_results["absolutely_correct"]
-        max_ratio_brand = check_results["max_ratio_brand"]
-        max_ratio_model = check_results["max_ratio_model"]
-        print(
-            f"ABSOLUTE CORRECT: {absolute_correct}, MAX RATIO BRAND: {max_ratio_brand}, MAX RATIO MODEL: {max_ratio_model}"
-        )
-        if absolute_correct == 0:
-            print(f"STRINGS:\n{strings}")
-            print(f"GT:\n{json.dumps(gt, indent=4)}")
-            print(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
+    # joined_table = (
+    #     db.table.filter(pl.col("parent_id") != 0)
+    #     .join(
+    #         db.table.filter(pl.col("parent_id") == 0),
+    #         left_on="parent_id",
+    #         right_on="id",
+    #         how="left",
+    #         suffix="_right",
+    #     )
+    #     .select(
+    #         pl.col("id").alias("model_id"),
+    #         pl.col("name").alias("model_name"),
+    #         pl.col("parent_id").alias("brand_id"),
+    #         pl.col("name_right").alias("brand_name"),
+    #     )
+    # )
+    # num_samples = 0
+    # total_correct = 0
+    # for result in results:
+    #     img_path = result["img_path"]
+    #     gt_path = gt_paths / f"{Path(img_path).stem}.json"
+    #     strings = result["ocr_result"]["strings"]
+    #     gt = read_json(gt_path)
+    #     if gt["model"] is None or gt["brand"] is None:
+    #         continue
+    #     gt = joined_table.filter(
+    #         pl.col("model_id") == int(gt["model"]),
+    #         pl.col("brand_id") == int(gt["brand"]),
+    #     ).to_dicts()[0]
 
-        print("-" * 100)
-        total_correct += absolute_correct
-        num_samples += 1
+    #     index_results = index.get_best_matches(strings)
+    #     index_results = [
+    #         {
+    #             k: item[k]
+    #             for k in [
+    #                 "model_id",
+    #                 "model_name",
+    #                 "brand_id",
+    #                 "brand_name",
+    #                 "combined_score",
+    #             ]
+    #         }
+    #         for item in index_results
+    #     ]
 
-    print(f"TOTAL CORRECT: {total_correct}, NUM SAMPLES: {num_samples}")
+    #     print(f"FILES: {img_path}, {gt_path}")
+    #     # logging.info(f"GT:\n{json.dumps(gt, indent=4)}")
+    #     # logging.info(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
+    #     check_results = check_correct(gt, index_results)
+    #     absolute_correct = check_results["absolutely_correct"]
+    #     max_ratio_brand = check_results["max_ratio_brand"]
+    #     max_ratio_model = check_results["max_ratio_model"]
+    #     print(
+    #         f"ABSOLUTE CORRECT: {absolute_correct}, MAX RATIO BRAND: {max_ratio_brand}, MAX RATIO MODEL: {max_ratio_model}"
+    #     )
+    #     if absolute_correct == 0:
+    #         print(f"STRINGS:\n{strings}")
+    #         print(f"GT:\n{json.dumps(gt, indent=4)}")
+    #         print(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
+
+    #     print("-" * 100)
+    #     total_correct += absolute_correct
+    #     num_samples += 1
+
+    # print(f"TOTAL CORRECT: {total_correct}, NUM SAMPLES: {num_samples}")
 
 
 if __name__ == "__main__":
