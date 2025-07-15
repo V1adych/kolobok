@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import logging
+import time
 
 from torchvision.transforms import functional as VF, InterpolationMode
 
@@ -48,8 +49,11 @@ class SidewallSegmentator:
         self.model.to(self.config.device)
         self.model.eval()
 
+        self.logger.info("SidewallSegmentator initialized successfully")
+
     @torch.no_grad()
     def forward(self, image: np.ndarray):
+        start_time = time.perf_counter()
         torch_image = (
             torch.from_numpy(image)
             .permute(2, 0, 1)
@@ -72,5 +76,10 @@ class SidewallSegmentator:
         mask = (F.sigmoid(logits) > self.config.confidence_threshold).to(
             torch.uint8
         ).numpy() * 255
+
+        end_time = time.perf_counter()
+        self.logger.info(
+            f"Completed sidewall segmentation in {end_time - start_time} seconds"
+        )
 
         return mask
