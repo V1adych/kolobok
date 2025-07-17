@@ -8,10 +8,11 @@
 
 data/
 weights/
+onnx/
 
 .envrc
 .env
-.vscode
+.vscode/
 __pycache__
 
 *.pth
@@ -25,4 +26,6 @@ vis
 *_db/*.csv
 *.parquet
 *.pkl
+*.ckpt
+*.csv
 .DS_Store

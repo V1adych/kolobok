@@ -11,13 +11,14 @@ from tire_vision.config import SidewallSegmentatorConfig, SidewallUnwrapperConfi
 
 def main():
     cfg_segmentator = SidewallSegmentatorConfig()
+    cfg_segmentator.segmentator_checkpoint = "checkpoints/tmp.pth"
     cfg_unwrapper = SidewallUnwrapperConfig()
 
     model = SidewallSegmentator(cfg_segmentator)
     unwrapper = SidewallUnwrapper(cfg_unwrapper)
 
     input_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations")
-    output_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations_unwrapped")
+    output_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations_unwrapped2")
 
     for img_path in tqdm(list(input_dir.iterdir())):
         img = cv2.imread(str(img_path))

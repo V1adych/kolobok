@@ -102,6 +102,7 @@ class SidewallSegmentatorConfig:
     segmentator_checkpoint: Optional[str] = os.environ.get(
         "SIDEWALL_SEGMENTATOR_CHECKPOINT"
     )
+    segmentator_onnx: str = os.environ["SIDEWALL_SEGMENTATOR_ONNX"]
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
     device: str = DEVICE

@@ -22,7 +22,7 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,21 +36,8 @@ services:
     depends_on:
       mysql_db:
         condition: service_healthy
-      
-    environment:
-      - API_TOKEN=${API_TOKEN}
-      - HF_TOKEN=${HF_TOKEN}
-      - SPIKE_DETECTOR_CHECKPOINT=${SPIKE_DETECTOR_CHECKPOINT}
-      - SPIKE_CLASSIFIER_CHECKPOINT=${SPIKE_CLASSIFIER_CHECKPOINT}
-      - DEPTH_ESTIMATOR_MODEL_NAME=${DEPTH_ESTIMATOR_MODEL_NAME}
-      - DEPTH_ESTIMATOR_CHECKPOINT=${DEPTH_ESTIMATOR_CHECKPOINT}
-      - SIDEWALL_SEGMENTATOR_CHECKPOINT=${SIDEWALL_SEGMENTATOR_CHECKPOINT}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - DEVICE=${DEVICE}
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     networks:
@@ -62,14 +49,12 @@ services:
     container_name: tg
     depends_on:
       - ml
-    environment:
-      - API_TOKEN=${API_TOKEN}
-      - BOT_TOKEN=${BOT_TOKEN}
-      - APP_URL=${APP_URL}
-      - ALLOWED_USERS=${ALLOWED_USERS}
+    env_file:
+      - .env
 
 volumes:
   db_data:
+
 
 secrets:
   envfile:

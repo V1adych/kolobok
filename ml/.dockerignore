@@ -1,2 +1,4 @@
 data/
 notebooks/
+ocr_quality/
+*.zip
