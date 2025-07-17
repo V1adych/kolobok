@@ -1,15 +1,9 @@
 from dataclasses import dataclass, field
 import os
 from typing import Literal, Tuple, List, Optional
-import warnings
-
-import torch
 
 
-DEVICE = os.environ["DEVICE"]
-if DEVICE.startswith("cuda") and not torch.cuda.is_available():
-    warnings.warn("CUDA is not available, using CPU")
-    DEVICE = "cpu"
+DEVICE = "cpu"
 
 
 CLASS_MAPPING = {
