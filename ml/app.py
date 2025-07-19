@@ -57,7 +57,7 @@ def validate_image(b64_data: str) -> None:
 
 
 @app.post("/api/v1/analyze_thread")
-async def analyze_thread(
+def analyze_thread(
     req: ImageRequest,
     token: str = Depends(verify_token),
 ):
@@ -87,7 +87,7 @@ async def analyze_thread(
 
 
 @app.post("/api/v1/extract_information")
-async def extract_information(
+def extract_information(
     req: ImageRequest,
     token: str = Depends(verify_token),
 ):

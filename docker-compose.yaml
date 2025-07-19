@@ -13,6 +13,7 @@ services:
 
   mysql_db:
     build: ./mysql_db
+    image: ghcr.io/v1adych/kolobok:mysql_db
     container_name: mysql_db
     environment:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
@@ -32,6 +33,7 @@ services:
       context: ./ml
       secrets:
         - envfile
+    image: ghcr.io/v1adych/kolobok:ml
     container_name: ml
     depends_on:
       mysql_db:
@@ -46,6 +48,7 @@ services:
 
   tg:
     build: ./tg
+    image: ghcr.io/v1adych/kolobok:tg
     container_name: tg
     depends_on:
       - ml

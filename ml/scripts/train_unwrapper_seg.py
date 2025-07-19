@@ -25,12 +25,13 @@ from transformers import SegformerConfig, SegformerForSemanticSegmentation
 class Args:
     train_roots: List[str]
     val_roots: List[str]
-    test_root: str
-    test_save_dir: str
+    test_root: Optional[str] = None
+    test_save_dir: Optional[str] = None
     reg_backgrounds_prob: float = 0.25
     reg_backgrounds_lum: float = 0.8
     reg_backgrounds_dir: Optional[str] = None
     resume_training_checkpoint: Optional[str] = None
+    ckpt_dir: str = "seg_checkpoints"
     segformer_model_name: str = "nvidia/segformer-b2-finetuned-ade-512-512"
     size: int = 512
     num_epochs: int = 50
@@ -44,6 +45,8 @@ class Args:
     dice_weight: float = 1.0
     iou_eps: float = 1e-4
     iou_threshold: float = 0.5
+    gradient_clip_val: float = 1.0
+    gradient_clip_algorithm: str = "norm"
 
 
 class UnwrapperDataset(Dataset):
@@ -317,39 +320,41 @@ class SegformerWrapper(pl.LightningModule):
         return {"val_loss": total_loss, "val_iou": iou}
 
     def on_validation_epoch_end(self):
-        if (
+        if not (
             hasattr(self.trainer, "test_dataloader")
             and self.trainer.test_dataloader is not None
         ):
-            test_loader = self.trainer.test_dataloader()
+            return
 
-            self.eval()
+        test_loader = self.trainer.test_dataloader()
 
-            with torch.no_grad():
-                for batch_idx, batch in enumerate(test_loader):
-                    images = batch
-                    images = images.to(self.device).float()
+        self.eval()
 
-                    logits = self(images)
-                    probs = torch.sigmoid(logits)
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(test_loader):
+                images = batch
+                images = images.to(self.device).float()
 
-                    masks = (probs > self.args.iou_threshold).float()
+                logits = self(images)
+                probs = torch.sigmoid(logits)
 
-                    for i, (image, mask) in enumerate(zip(images, masks)):
-                        masked_image = image * mask.unsqueeze(0)
+                masks = (probs > self.args.iou_threshold).float()
 
-                        masked_image_uint8 = (masked_image * 255).clamp(0, 255).byte()
+                for i, (image, mask) in enumerate(zip(images, masks)):
+                    masked_image = image * mask.unsqueeze(0)
 
-                        epoch_num = self.current_epoch
-                        save_path = (
-                            Path(self.args.test_save_dir)
-                            / f"epoch_{epoch_num:03d}"
-                            / f"masked_{batch_idx}_{i}.png"
-                        )
-                        save_path.parent.mkdir(parents=True, exist_ok=True)
-                        write_png(masked_image_uint8.cpu(), str(save_path))
+                    masked_image_uint8 = (masked_image * 255).clamp(0, 255).byte()
 
-            self.train()
+                    epoch_num = self.current_epoch
+                    save_path = (
+                        Path(self.args.test_save_dir)
+                        / f"epoch_{epoch_num:03d}"
+                        / f"masked_{batch_idx}_{i}.png"
+                    )
+                    save_path.parent.mkdir(parents=True, exist_ok=True)
+                    write_png(masked_image_uint8.cpu(), str(save_path))
+
+        self.train()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.args.lr)
@@ -380,7 +385,9 @@ def main():
         reg_backgrounds_prob=0,
     )
 
-    test_dataset = TestUnwrapperDataset(root=args.test_root, size=args.size)
+    test_dataset = []
+    if args.test_root is not None:
+        test_dataset = TestUnwrapperDataset(root=args.test_root, size=args.size)
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Val dataset size: {len(val_dataset)}")
@@ -402,19 +409,21 @@ def main():
         pin_memory=True,
     )
 
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=1,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=True,
-    )
+    test_loader = None
+    if test_dataset:
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=args.num_workers,
+            pin_memory=True,
+        )
 
     model = SegformerWrapper(args)
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        dirpath=f"lightning_logs/checkpoints-{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}",
-        filename="segformer-{epoch:03d}-{val_iou:.5f}",
+        dirpath=f"{args.ckpt_dir}/checkpoints-{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}",
+        filename="model-{epoch:03d}-{val_iou:.5f}",
         monitor="val_iou",
         mode="max",
         save_top_k=10,
@@ -428,12 +437,17 @@ def main():
         check_val_every_n_epoch=1,
         enable_progress_bar=True,
         enable_model_summary=True,
+        gradient_clip_val=args.gradient_clip_val,
+        gradient_clip_algorithm=args.gradient_clip_algorithm,
     )
 
-    trainer.test_dataloader = lambda: test_loader
+    if test_loader is not None:
+        trainer.test_dataloader = lambda: test_loader
 
     print("Starting training...")
-    trainer.fit(model, train_loader, val_loader, ckpt_path=args.resume_training_checkpoint)
+    trainer.fit(
+        model, train_loader, val_loader, ckpt_path=args.resume_training_checkpoint
+    )
     print(f"Masked images saved to: {args.test_save_dir}")
 
 

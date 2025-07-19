@@ -26,13 +26,13 @@ def _json_format(data):
 class TireAnnotationPipeline:
     def __init__(
         self,
-        detector_config: SidewallSegmentatorConfig,
-        unwrapper_config: SidewallUnwrapperConfig,
+        sidewall_segmentator_config: SidewallSegmentatorConfig,
+        sidewall_unwrapper_config: SidewallUnwrapperConfig,
         ocr_config: OCRConfig,
         index_config: IndexConfig,
     ):
-        self.detector = SidewallSegmentator(detector_config)
-        self.unwrapper = SidewallUnwrapper(unwrapper_config)
+        self.detector = SidewallSegmentator(sidewall_segmentator_config)
+        self.unwrapper = SidewallUnwrapper(sidewall_unwrapper_config)
         self.ocr = OCRPipeline(ocr_config)
         self.index = IndexPipeline(index_config)
 

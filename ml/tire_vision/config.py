@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import os
-from typing import Literal, Tuple, List, Optional
+from typing import Literal, Tuple, List
 
 
 DEVICE = "cpu"
@@ -62,44 +62,36 @@ Example of a valid response:
 
 
 @dataclass
-class SegmentatorConfig:
-    device: str = DEVICE
-    target: str = "wheel-tire-thread"
-    vocab_aug_mode: Literal["COCO-stuff", "COCO-all", "none"] = "COCO-stuff"
-    segmentation_mode: Literal["accurate", "efficient"] = "efficient"
+class ThreadSegmentatorConfig:
+    thread_segmentator_onnx: str = "onnx/thread_segmentator.onnx"
+    confidence_threshold: float = 0.5
+    resize_shape: Tuple[int, int] = (512, 512)
     padding_frac: float = 0.01
     min_tire_pixels: int = 96
 
 
 @dataclass
 class SpikePipelineConfig:
-    detector_checkpoint: Optional[str] = os.environ.get("SPIKE_DETECTOR_CHECKPOINT")
-    classifier_checkpoint: Optional[str] = os.environ.get("SPIKE_CLASSIFIER_CHECKPOINT")
-    device: str = DEVICE
-    detection_threshold: float = 0.5
-    erosion_iterations: int = 3
-    dilation_iterations: int = 3
+    spike_segmentator_onnx: str = "onnx/spike_segmentator.onnx"
+    spike_classifier_onnx: str = "onnx/spike_classifier.onnx"
+    confidence_threshold: float = 0.5
+    resize_shape: Tuple[int, int] = (512, 512)
+    erosion_iterations: int = 0
+    dilation_iterations: int = 0
     crop_size: int = 32
 
 
 @dataclass
-class DepthEstimatorConfig:
-    model_name: str = os.environ["DEPTH_ESTIMATOR_MODEL_NAME"]
-    checkpoint: Optional[str] = os.environ.get("DEPTH_ESTIMATOR_CHECKPOINT")
-    device: str = DEVICE
+class DepthRegressorConfig:
+    depth_regressor_onnx: str = "onnx/depth_regressor.onnx"
     resize_shape: Tuple[int, int] = (512, 512)
 
 
 @dataclass
 class SidewallSegmentatorConfig:
-    hf_model_id: str = "nvidia/segformer-b2-finetuned-ade-512-512"
-    segmentator_checkpoint: Optional[str] = os.environ.get(
-        "SIDEWALL_SEGMENTATOR_CHECKPOINT"
-    )
-    segmentator_onnx: str = os.environ["SIDEWALL_SEGMENTATOR_ONNX"]
+    sidewall_segmentator_onnx: str = "onnx/sidewall_segmentator.onnx"
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
-    device: str = DEVICE
 
 
 @dataclass
@@ -150,9 +142,9 @@ class IndexConfig:
 
 @dataclass
 class TireVisionConfig:
-    segmentation_config = SegmentatorConfig()
+    thread_segmentator_config = ThreadSegmentatorConfig()
     spike_pipeline_config = SpikePipelineConfig()
-    depth_estimator_config = DepthEstimatorConfig()
+    depth_regressor_config = DepthRegressorConfig()
     sidewall_segmentator_config = SidewallSegmentatorConfig()
     sidewall_unwrapper_config = SidewallUnwrapperConfig()
     ocr_config = OCRConfig()

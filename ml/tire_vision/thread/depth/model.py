@@ -1,71 +1,30 @@
+import onnxruntime
+import numpy as np
+
 import torch
-import torch.nn as nn
-from torchvision.models import (
-    densenet201,
-    googlenet,
-    swin_v2_t,
-    swin_s,
-    efficientnet_b3,
-    efficientnet_b7,
-)
-import logging
+from torchvision.transforms import functional as VF, InterpolationMode
 
-logger = logging.getLogger("depth_estimator_model_loader")
+from tire_vision.config import DepthRegressorConfig
 
 
-def get_swin_v2():
-    model = swin_v2_t()
-    model.head = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
-    return model
+class DepthRegressor:
+    def __init__(self, config: DepthRegressorConfig):
+        self.config = config
+        self.session = onnxruntime.InferenceSession(self.config.depth_regressor_onnx)
 
-
-def get_swin_s():
-    model = swin_s()
-    model.head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
-    return model
-
-
-def get_effnet_b3():
-    model = efficientnet_b3()
-    model.classifier = nn.Sequential(nn.Linear(1536, 512), nn.SiLU(), nn.Linear(512, 1))
-    return model
-
-
-def get_effnet_b7():
-    model = efficientnet_b7()
-    model.classifier = nn.Sequential(nn.Linear(2560, 512), nn.SiLU(), nn.Linear(512, 1))
-    return model
-
-
-def get_densenet201():
-    model = densenet201()
-    model.classifier = nn.Sequential(nn.Linear(1920, 512), nn.ReLU(), nn.Linear(512, 1))
-    return model
-
-
-def get_googlenet():
-    model = googlenet()
-    model.fc = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, 1))
-    return model
-
-
-models = {
-    "swin_v2": get_swin_v2,
-    "swin_s": get_swin_s,
-    "effnet_b3": get_effnet_b3,
-    "effnet_b7": get_effnet_b7,
-    "densenet201": get_densenet201,
-    "googlenet": get_googlenet,
-}
-
-
-def get_depth_estimator(model_name: str, checkpoint_path: str):
-    model = models[model_name]()
-    if checkpoint_path:
-        model.load_state_dict(
-            torch.load(checkpoint_path, weights_only=True, map_location="cpu")
+    def forward(self, image: np.ndarray):
+        h, w, _ = image.shape
+        image = image.transpose(2, 0, 1)[None].astype(np.float32) / 255
+        image_torch = torch.from_numpy(image)
+        image_torch = VF.resize(
+            image_torch,
+            self.config.resize_shape,
+            interpolation=InterpolationMode.BILINEAR,
         )
-    else:
-        logger.warning("Depth estimator checkpoint not found, using random weights")
-    model.eval()
-    return model
+
+        result = self.session.run(None, {"input": image_torch.numpy()})[0]
+
+        return float(np.exp(np.squeeze(result)))
+
+    def __call__(self, image: np.ndarray):
+        return self.forward(image)

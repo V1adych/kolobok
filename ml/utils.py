@@ -2,7 +2,6 @@ from typing import Any
 
 import numpy as np
 import cv2
-import torch
 
 from tire_vision.thread.pipeline import TireThreadPipeline
 from tire_vision.text.pipeline import TireAnnotationPipeline
@@ -11,20 +10,19 @@ from tire_vision.config import TireVisionConfig, CLASS_MAPPING, CLASS_COLORS
 
 cfg = TireVisionConfig()
 thread_pipeline = TireThreadPipeline(
-    segmentation_config=cfg.segmentation_config,
-    spikes_config=cfg.spike_pipeline_config,
-    depth_config=cfg.depth_estimator_config,
+    segmentator_config=cfg.thread_segmentator_config,
+    spike_pipeline_config=cfg.spike_pipeline_config,
+    depth_regressor_config=cfg.depth_regressor_config,
 )
 annotation_pipeline = TireAnnotationPipeline(
-    detector_config=cfg.sidewall_segmentator_config,
-    unwrapper_config=cfg.sidewall_unwrapper_config,
+    sidewall_segmentator_config=cfg.sidewall_segmentator_config,
+    sidewall_unwrapper_config=cfg.sidewall_unwrapper_config,
     ocr_config=cfg.ocr_config,
     index_config=cfg.index_config,
 )
 
 
 def get_thread_stats(image: np.ndarray) -> dict[str, Any]:
-    image = torch.from_numpy(image).permute(2, 0, 1)
     result = thread_pipeline(image)
     return result
 
