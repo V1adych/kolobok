@@ -1,15 +1,12 @@
 from pathlib import Path
 from typing import Tuple
 import os
-import sys
 
-import torch
-from torchvision.io import read_image, write_png
+import cv2
+import numpy as np
 
-sys.path.append(str(Path(__file__).parent.parent))
-
-from tire_vision.thread.segmentation.segmentator import SegmentationInferencer
-from tire_vision.config import SegmentatorConfig
+from tire_vision.thread.segmentator.model import ThreadSegmentator
+from tire_vision.config import ThreadSegmentatorConfig
 
 SRC_DIR = Path("data/dataset_synthetic")
 DEST_DIR = Path("data/thread/depth/synthetic")
@@ -20,27 +17,28 @@ if not SRC_DIR.exists():
     raise FileNotFoundError(f"Source directory {SRC_DIR} does not exist")
 
 
-def _get_image_and_label(path: Path) -> Tuple[torch.Tensor, float]:
-    image = read_image(str(path))
+def _get_image_and_label(path: Path) -> Tuple[np.ndarray, float]:
+    image = cv2.imread(str(path))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     label = float(path.stem.split("_")[2]) * 10
     return image, label
 
 
 def main():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    cfg = SegmentatorConfig(device=device)
-    segmentator = SegmentationInferencer(cfg)
+    cfg = ThreadSegmentatorConfig()
+    segmentator = ThreadSegmentator(cfg)
 
-    for image_path in SRC_DIR.iterdir():
+    for image_path in SRC_DIR.glob("*.jpg"):
         print(f"Processing {image_path}")
         try:
             image, label = _get_image_and_label(image_path)
 
-            result = segmentator.crop_tire(image.to(device)).cpu()
+            result = segmentator.crop_tire(image)
 
             save_path = DEST_DIR / f"{len(os.listdir(DEST_DIR))}_{label}.png"
 
-            write_png(result, save_path)
+            result = cv2.cvtColor(result, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(str(save_path), result)
 
         except Exception as e:
             print(f"Error processing {image_path}: {e}")

@@ -24,7 +24,9 @@ class DepthRegressor:
 
         result = self.session.run(None, {"input": image_torch.numpy()})[0]
 
-        return float(np.exp(np.squeeze(result)))
+        result_scaled = 10 / (1 + np.exp(-np.squeeze(result)))
+
+        return float(result_scaled)
 
     def __call__(self, image: np.ndarray):
         return self.forward(image)

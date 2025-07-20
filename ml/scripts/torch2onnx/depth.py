@@ -10,7 +10,6 @@ from torchvision.models import (
     googlenet,
     swin_v2_t,
     swin_s,
-    efficientnet_b3,
     efficientnet_b7,
 )
 
@@ -20,60 +19,43 @@ logging.basicConfig(
 logger = logging.getLogger("torch2onnx")
 
 
-def get_swin_v2():
-    model = swin_v2_t()
-    model.head = nn.Sequential(nn.Linear(768, 512), nn.GELU(), nn.Linear(512, 1))
+def get_model(model_name: str) -> nn.Module:
+    if model_name == "swin_s":
+        model = swin_s()
+        model.head = nn.Linear(768, 1)
+    elif model_name == "effnet_b7":
+        model = efficientnet_b7()
+        model.classifier = nn.Linear(2560, 1)
+    elif model_name == "swin_v2_t":
+        model = swin_v2_t()
+        model.head = nn.Linear(768, 1)
+    elif model_name == "densenet201":
+        model = densenet201()
+        model.classifier = nn.Linear(1920, 1)
+    elif model_name == "googlenet":
+        model = googlenet()
+        model.fc = nn.Linear(1024, 1)
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
     return model
 
 
-def get_swin_s():
-    model = swin_s()
-    model.head = nn.Sequential(nn.Linear(768, 256), nn.ReLU(), nn.Linear(256, 1))
-    return model
+def load_checkpoint(ckpt_path: str, pl_prefix: str = "model."):
+    state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=False)
 
+    if "state_dict" in state_dict:
+        state_dict = {
+            k[len(pl_prefix) :] if k.startswith(pl_prefix) else k: v
+            for k, v in state_dict["state_dict"].items()
+        }
 
-def get_effnet_b3():
-    model = efficientnet_b3()
-    model.classifier = nn.Sequential(nn.Linear(1536, 512), nn.SiLU(), nn.Linear(512, 1))
-    return model
-
-
-def get_effnet_b7():
-    model = efficientnet_b7()
-    model.classifier = nn.Sequential(nn.Linear(2560, 512), nn.SiLU(), nn.Linear(512, 1))
-    return model
-
-
-def get_densenet201():
-    model = densenet201()
-    model.classifier = nn.Sequential(nn.Linear(1920, 512), nn.ReLU(), nn.Linear(512, 1))
-    return model
-
-
-def get_googlenet():
-    model = googlenet()
-    model.fc = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(), nn.Linear(512, 1))
-    return model
-
-
-models = {
-    "swin_v2": get_swin_v2,
-    "swin_s": get_swin_s,
-    "effnet_b3": get_effnet_b3,
-    "effnet_b7": get_effnet_b7,
-    "densenet201": get_densenet201,
-    "googlenet": get_googlenet,
-}
+    return state_dict
 
 
 def get_depth_estimator(model_name: str, checkpoint_path: str):
-    model = models[model_name]()
-    if checkpoint_path:
-        model.load_state_dict(
-            torch.load(checkpoint_path, weights_only=True, map_location="cpu")
-        )
-    else:
-        logger.warning("Depth estimator checkpoint not found, using random weights")
+    model = get_model(model_name)
+    checkpoint = load_checkpoint(checkpoint_path)
+    model.load_state_dict(checkpoint)
     model.eval()
     return model
 

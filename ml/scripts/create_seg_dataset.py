@@ -1,4 +1,3 @@
-from os import times_result
 from pathlib import Path
 from dataclasses import dataclass
 import json
@@ -43,32 +42,32 @@ def main():
         tire_annot = list(
             filter(lambda x: x["value"]["polygonlabels"][0] == args.tire_name, annots)
         )[-1]
-        rim_annot = list(
-            filter(lambda x: x["value"]["polygonlabels"][0] == args.rim_name, annots)
-        )[-1]
+        # rim_annot = list(
+        #     filter(lambda x: x["value"]["polygonlabels"][0] == args.rim_name, annots)
+        # )[-1]
 
         tire_poly = np.array(tire_annot["value"]["points"])
-        rim_poly = np.array(rim_annot["value"]["points"])
+        # rim_poly = np.array(rim_annot["value"]["points"])
 
         tire_x_scale = tire_annot["original_width"] / 100
         tire_y_scale = tire_annot["original_height"] / 100
-        rim_x_scale = rim_annot["original_width"] / 100
-        rim_y_scale = rim_annot["original_height"] / 100
+        # rim_x_scale = rim_annot["original_width"] / 100
+        # rim_y_scale = rim_annot["original_height"] / 100
 
         tire_poly[:, 0] *= tire_x_scale
         tire_poly[:, 1] *= tire_y_scale
-        rim_poly[:, 0] *= rim_x_scale
-        rim_poly[:, 1] *= rim_y_scale
+        # rim_poly[:, 0] *= rim_x_scale
+        # rim_poly[:, 1] *= rim_y_scale
 
         tire_poly = tire_poly.astype(np.int32)
-        rim_poly = rim_poly.astype(np.int32)
+        # rim_poly = rim_poly.astype(np.int32)
 
         image = cv2.imread(str(src_image_path))
 
         mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
         mask = cv2.fillPoly(mask, [tire_poly], 255)
-        mask = cv2.fillPoly(mask, [rim_poly], 0)
+        # mask = cv2.fillPoly(mask, [rim_poly], 0)
 
         cv2.imwrite(str(dest_image_path), image)
         cv2.imwrite(str(dest_mask_path), mask)
