@@ -1,5 +1,6 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
 
 import tyro
 import torch
@@ -23,9 +24,7 @@ class ModelConfig:
 
 @dataclass
 class Args:
-    sidewall: ModelConfig
-    thread: ModelConfig
-    spike: ModelConfig
+    model: ModelConfig
 
 
 def load_checkpoint(ckpt_path: str, pl_prefix: str = "model."):
@@ -56,39 +55,34 @@ def main():
 
     dummy_input = torch.rand(1, 3, 512, 512)
 
-    for model_config in [
-        args.sidewall,
-        args.thread,
-        args.spike,
-    ]:
-        logger.info(f"Converting {model_config.ckpt_path} to ONNX...")
-        state_dict = load_checkpoint(model_config.ckpt_path)
+    logger.info(f"Converting {args.model.ckpt_path} to ONNX...")
+    state_dict = load_checkpoint(args.model.ckpt_path)
 
-        hf_model_config = SegformerConfig.from_pretrained(model_config.hf_model_id)
-        hf_model_config.num_labels = 1
+    hf_model_config = SegformerConfig.from_pretrained(args.model.hf_model_id)
+    hf_model_config.num_labels = 1
 
-        base_model = SegformerForSemanticSegmentation._from_config(hf_model_config)
+    base_model = SegformerForSemanticSegmentation._from_config(hf_model_config)
 
-        model = SegformerWrapper(base_model)
+    model = SegformerWrapper(base_model)
 
-        model.load_state_dict(state_dict)
-        model.eval()
+    model.load_state_dict(state_dict)
+    model.eval()
 
-        torch.onnx.export(
-            model,
-            dummy_input,
-            model_config.onnx_path,
-            verbose=True,
-            opset_version=11,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={
-                "input": {0: "batch_size"},
-                "output": {0: "batch_size"},
-            },
-        )
+    torch.onnx.export(
+        model,
+        dummy_input,
+        args.model.onnx_path,
+        verbose=True,
+        opset_version=11,
+        input_names=["input"],
+        output_names=["output"],
+        dynamic_axes={
+            "input": {0: "batch_size"},
+            "output": {0: "batch_size"},
+        },
+    )
 
-        logger.info(f"Saved {model_config.onnx_path}")
+    logger.info(f"Saved {args.model.onnx_path}")
 
 
 if __name__ == "__main__":
