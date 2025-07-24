@@ -2,7 +2,9 @@ from typing import Tuple, Optional
 
 import numpy as np
 import cv2
-import onnxruntime
+import onnxruntime as ort
+
+from tire_vision.config import ort_providers, ort_opts
 
 
 class OnnxSegmentator:
@@ -15,7 +17,11 @@ class OnnxSegmentator:
         self.onnx_path = onnx_path
         self.resize_shape = resize_shape
         self.threshold = threshold
-        self.session = onnxruntime.InferenceSession(self.onnx_path)
+        self.session = ort.InferenceSession(
+            self.onnx_path,
+            providers=ort_providers,
+            sess_options=ort_opts,
+        )
 
     def forward(self, image: np.ndarray):
         """

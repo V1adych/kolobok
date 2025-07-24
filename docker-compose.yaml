@@ -1,13 +1,13 @@
 services:
-  tor:
-    image: dperson/torproxy
-    container_name: tor
-    restart: unless-stopped
-    networks:
-      - proxy
-    ports:
-      - "9050:9050"
-      - "8118:8118"
+  # tor:
+  #   image: dperson/torproxy
+  #   container_name: tor
+  #   restart: unless-stopped
+  #   networks:
+  #     - proxy
+  #   ports:
+  #     - "9050:9050"
+  #     - "8118:8118"
 
   mysql_db:
     build: ./mysql_db
@@ -34,13 +34,13 @@ services:
     image: ghcr.io/v1adych/kolobok:ml
     container_name: ml
     depends_on:
-      tor:
-        condition: service_started
+      # tor:
+      #   condition: service_started
       mysql_db:
         condition: service_healthy
-    environment:
-      - HTTP_PROXY=socks5h://tor:9050
-      - HTTPS_PROXY=socks5h://tor:9050
+    # environment:
+    #   - HTTP_PROXY=socks5h://tor:9050
+    #   - HTTPS_PROXY=socks5h://tor:9050
     env_file:
       - .env
     ports:

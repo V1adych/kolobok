@@ -4,13 +4,17 @@ import numpy as np
 import torch
 from torchvision.transforms import functional as VF, InterpolationMode
 
-from tire_vision.config import DepthRegressorConfig
+from tire_vision.config import DepthRegressorConfig, ort_providers, ort_opts
 
 
 class DepthRegressor:
     def __init__(self, config: DepthRegressorConfig):
         self.config = config
-        self.session = onnxruntime.InferenceSession(self.config.depth_regressor_onnx)
+        self.session = onnxruntime.InferenceSession(
+            self.config.depth_regressor_onnx,
+            providers=ort_providers,
+            sess_options=ort_opts,
+        )
 
     def forward(self, image: np.ndarray):
         h, w, _ = image.shape

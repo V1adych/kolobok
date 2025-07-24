@@ -73,13 +73,10 @@ def main():
         dummy_input,
         args.model.onnx_path,
         verbose=True,
-        opset_version=11,
+        opset_version=17,
+        do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
-        dynamic_axes={
-            "input": {0: "batch_size"},
-            "output": {0: "batch_size"},
-        },
     )
 
     logger.info(f"Saved {args.model.onnx_path}")
