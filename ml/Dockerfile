@@ -11,5 +11,6 @@ COPY . .
 RUN --mount=type=secret,id=envfile \
     sh -c 'set -e && set -a && . /run/secrets/envfile && set +a && python -m scripts.init'
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
-# CMD ["sh", "-c", "gunicorn app:app -k uvicorn.workers.UvicornWorker -w 4 --preload --bind 0.0.0.0:8000 --timeout 300 --graceful-timeout 300"]
+ENV GUNICORN_WORKERS=1
+
+CMD sh -c "gunicorn app:app -k uvicorn.workers.UvicornWorker --workers $GUNICORN_WORKERS --bind 0.0.0.0:8000"
