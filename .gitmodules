@@ -1,0 +1,7 @@
+[submodule "external/SAN"]
+	path = ml/external/SAN
+	url = git@github.com:MendelXu/SAN.git
+	branch = main
+	update = none
+	ignore = dirty
+	commit = e19262d1a23992fc2cef934d6756b89ff50fe5c3
