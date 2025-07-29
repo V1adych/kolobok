@@ -71,7 +71,7 @@ class OCRPipeline:
         base_prompt = self.config.prompt
 
         if num_images == 1:
-            suffix = "You will be provided with an original image of a tire."
+            suffix = "You will be provided with an image of a tire."
         elif num_images == 2:
             suffix = (
                 "You will be provided with an original image of a tire and an unwrapped image of the same tire. "

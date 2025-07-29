@@ -64,7 +64,7 @@ class TireAnnotationPipeline:
         images_for_ocr = [image]
         if unwrap_success:
             self.logger.info("Unwrap successful, using both images for OCR")
-            images_for_ocr.append(unwrapped_image)
+            images_for_ocr = [unwrapped_image]
         else:
             self.logger.warning(
                 "Unwrap failed, using only original image for OCR. This could lead to less accurate results."
