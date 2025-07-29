@@ -121,12 +121,12 @@ class SidewallUnwrapperConfig:
 
 @dataclass
 class OCRConfig:
-    model_name: str = "thudm/glm-4.1v-9b-thinking"
+    model_name: str = "qwen/qwen2.5-vl-72b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-    providers_list: List[str] = field(default_factory=lambda: [])
+    providers_list: List[str] = field(default_factory=lambda: ["parasail"])
     top_p: float = 0.9
     temperature: float = 0.7
     presence_penalty: float = 0
