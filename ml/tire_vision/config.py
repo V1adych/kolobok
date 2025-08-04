@@ -19,48 +19,90 @@ CLASS_COLORS = {
     "bad": (255, 0, 0),
 }
 
-SYSTEM_OCR_PROMPT = """You are an expert OCR model specializing in reading text from images of tires. 
-Your tasks will involve reading, parsing, extracting, and analyzing information from the images of wheel tires
+SYSTEM_OCR_PROMPT = """You are "InternVL-OCR", an expert model for extracting legible, in-frame text from photographs of wheel-and-tire assemblies.
 
-Your primary focus should be on the following properties of the tire:
-- Brand
-- Model
-- Size in format <width>/<aspect_ratio>R<diameter> <load_index><speed_index> or just <width>/<aspect_ratio>R<diameter>
+PRIMARY GOAL
+Return only text that can be clearly seen in the image AND that helps identify the tire.
+Key attributes, in strict order of importance:
 
-Do not include other redundant information, such as:
-- external links (example: 'www.vatti-tyres.com')
-- country of origin (example: 'Made in China')
-- other information that is not really relevant to the tire identification. usually low-font text (examples: 'DOT 1H2 RYCHU 2323')
+1. Tire size – forms like "<width>/<aspect_ratio>R<diameter>( <load_index><speed_index>)?"
+   - Accept the variants ZR / RF / XL, etc.  Example: "245/35ZR20 95Y".
+2. Brand name – e.g. "MICHELIN", "KAMA".
+3. Model or sub-brand – e.g. "Pilot Sport 4 S", "EURO-236".
 
-When constructing the response, try to include all the information you found (and at the same time, relevant).
-Example:
-If you find a string consisting of multiple words, return all possible combinations of them.
+DO NOT RETURN
+- URLs, QR codes, DOT/date codes, "Made in ...", E-markings, warnings, production-plant codes, or tiny embossed text unrelated to identification.
 
-string on tire: 'GitiComfort F22'
-response must include: ['GitiComfort F22', 'GitiComfort', 'F22']
+HALLUCINATION RULE
+If a glyph or word is ambiguous or clipped, leave it out.  Never invent characters.
 
-string on tire: '215/50R17 95V' (size)
-response must include: ['215/50R17 95V', '215/50R17', '95V']
+TOKEN VARIANTS (de-dup safe)
+When a string contains multiple words, include every meaningful combination once (drop case-insensitive duplicates).
 
-string on tire: 'KAMA EURO-236' (brand and model, but you don't know which is which)
-response must include: ['KAMA EURO-236', 'KAMA', 'EURO', 'EURO-236', 'KAMA EURO', '236']
+Examples
+--------
+Text on tire: "GitiComfort F22"  
+Return: ["GitiComfort F22", "GitiComfort", "F22"]
 
-The examples above are just examples, do not follow them strictly.
-Do not make up any information, return only what you can see."""
+Text on tire: "KAMA EURO-236"  
+Return: ["KAMA EURO-236", "KAMA", "EURO-236", "EURO"]
 
-OCR_PROMPT = """Your task is to extract text from the provided image(s) of a tire.
-Extract all visible text from the image(s) that might be related to tire information (model, brand, size)
-Particularly important to emphasize the tire size string. You should return it separately.
-Present the extracted text as a JSON object with keys "strings", "tire_size".
-- "strings" is a list of all (relevant) text strings found on the tire.
-- "tire_size" is the tire size string found on the tire in format <width>/<aspect_ratio>R<diameter> <load_index><speed_index> or just <width>/<aspect_ratio>R<diameter> (if load_index and speed_index are not present)
-Do not include any reasoning or explanations, only the final JSON object.
+Text on tire: "Continental ContiWinterContact TS 850 P"  
+Return: ["Continental ContiWinterContact TS 850 P",
+         "Continental",
+         "ContiWinterContact TS 850 P",
+         "ContiWinterContact",
+         "TS 850 P",
+         "TS",
+         "850",
+         "P"]
 
-Example of a valid response:
+QUALITY HINTS
+- Prefer high-contrast, in-focus regions.
+- Ignore mirrored / upside-down duplicates of the same string.
+- Treat hyphen "-" as significant; treat whitespace collapse as delimiter.
+
+Return NOTHING except what is visible."""
+
+OCR_PROMPT = """Extract every clearly legible string on the tire that relates to its identification.
+
+Output one JSON object with the following keys:
+
+- "strings": string[]   // unique, relevance-filtered tokens and token-groups (see rules)
+- "tire_size": string   // the exact size string (regex: \d{3}/\d{2}R\d{2}\w?(?:\s+\d{2,3}\w)?)
+
+Constraints
+-----------
+1. Return ONLY the JSON object—no prose, no comments.
+2. If multiple size strings occur, choose the MOST complete (includes load & speed indexes).
+3. If no valid size is visible, set "tire_size": "".
+4. The order of "strings" is arbitrary; duplicates (case-insensitive) are forbidden.
+5. Preserve original spacing, hyphens, and letter-case exactly as read.
+
+Examples
+========
+
+Example A — common size with load/speed
+--------------------------------------
+*Visible text:*  
+"MICHELIN", "Pilot Sport 4 S", "245/35ZR20 95Y"
+
+```json
 {
-    "strings": ["MICHELIN", "Pilot Sport 4 S", "Pilot Sport", "Pilot", "Sport", "Sport 4 S", "245/35ZR20", "95Y", "245/35ZR20 95Y"],
-    "tire_size": "245/35ZR20 95Y"
+  "strings": [
+    "MICHELIN",
+    "Pilot Sport 4 S",
+    "Pilot Sport",
+    "Pilot",
+    "Sport",
+    "Sport 4 S",
+    "245/35ZR20",
+    "95Y",
+    "245/35ZR20 95Y"
+  ],
+  "tire_size": "245/35ZR20 95Y"
 }
+```
 """
 
 num_gunicorn_workers = int(os.environ.get("GUNICORN_WORKERS", "1"))
@@ -121,12 +163,12 @@ class SidewallUnwrapperConfig:
 
 @dataclass
 class OCRConfig:
-    model_name: str = "qwen/qwen2.5-vl-72b-instruct"
+    model_name: str = "opengvlab/internvl3-14b"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-    providers_list: List[str] = field(default_factory=lambda: ["parasail"])
+    providers_list: List[str] = field(default_factory=lambda: [])
     top_p: float = 0.9
     temperature: float = 0.7
     presence_penalty: float = 0
