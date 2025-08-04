@@ -17,7 +17,7 @@ import tyro
 class Args:
     num_requests: int = 3
     max_rps: int = 10
-    images_dir: str = "tests/data/thread"
+    images_dir: str = "perf/data/thread"
     url: str = "http://localhost:8000/api/v1/analyze_thread"
     token: str = ""
 
