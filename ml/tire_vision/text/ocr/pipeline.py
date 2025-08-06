@@ -121,7 +121,7 @@ class OCRPipeline:
         params = dict(
             model=self.config.model_name,
             messages=messages,
-            stream=True,
+            stream=False,
             temperature=self.config.temperature,
             top_p=self.config.top_p,
             max_tokens=self.config.max_completion_tokens,
@@ -135,34 +135,26 @@ class OCRPipeline:
         return params
 
     def _get_llm_response(self, file_inputs: List[str], user_prompt: str) -> str:
-        result = ""
         messages = self._build_messages(file_inputs, user_prompt)
 
-        stream = self.client.chat.completions.create(
+        response = self.client.chat.completions.create(
             **self._get_request_kwargs(messages)
         )
 
-        for chunk in stream:
-            if chunk.choices[0].delta.content is not None:
-                result += chunk.choices[0].delta.content
-
+        result = response.choices[0].message.content
         self.logger.info(f"LLM response: {result}")
         return result
 
     async def _async_get_llm_response(
         self, file_inputs: List[str], user_prompt: str
     ) -> str:
-        result = ""
         messages = self._build_messages(file_inputs, user_prompt)
 
-        stream = await self.async_client.chat.completions.create(
+        response = await self.async_client.chat.completions.create(
             **self._get_request_kwargs(messages)
         )
 
-        async for chunk in stream:
-            if chunk.choices[0].delta.content is not None:
-                result += chunk.choices[0].delta.content
-
+        result = response.choices[0].message.content
         self.logger.info(f"LLM response: {result}")
         return result
 

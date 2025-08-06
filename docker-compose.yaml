@@ -9,22 +9,22 @@ services:
   #     - "9050:9050"
   #     - "8118:8118"
 
-  mysql_db:
-    build: ./mysql_db
-    image: ghcr.io/v1adych/kolobok:mysql_db
-    container_name: mysql_db
-    environment:
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # mysql_db:
+  #   build: ./mysql_db
+  #   image: ghcr.io/v1adych/kolobok:mysql_db
+  #   container_name: mysql_db
+  #   environment:
+  #     - MYSQL_DATABASE=${MYSQL_DATABASE}
+  #     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+  #   volumes:
+  #     - db_data:/var/lib/mysql
+  #   ports:
+  #     - "3306:3306"
+  #   healthcheck:
+  #     test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   ml:
     build:
@@ -33,11 +33,11 @@ services:
         - envfile
     image: ghcr.io/v1adych/kolobok:ml
     container_name: ml
-    depends_on:
+    # depends_on:
       # tor:
       #   condition: service_started
-      mysql_db:
-        condition: service_healthy
+      # mysql_db:
+      #   condition: service_healthy
     # environment:
     #   - HTTP_PROXY=socks5h://tor:9050
     #   - HTTPS_PROXY=socks5h://tor:9050

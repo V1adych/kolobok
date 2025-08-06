@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import logging
 
+from mimetypes import suffix_map
 import time
 from pathlib import Path
 from typing import Optional, List
@@ -269,6 +270,33 @@ class TireModelDatabase:
         )
 
         return best_matches_lazy.collect()
+
+    def get_best_matches_lazy_ind(self, queries: List[str], top_n: int = 10, top_n_ind: int = 30):
+        builder_scores = self.get_scores_lazy(queries)
+        suffix = "_right"
+
+        best_matches_brand = builder_scores.filter(pl.col("parent_id") == 0).explode("query_scores").with_columns(
+            pl.col("query_scores").struct.field("candidate").alias("brand_name"),
+            pl.col("query_scores").struct.field("score").alias("brand_score"),
+        ).sort("brand_score", descending=True).limit(top_n_ind)
+
+        best_matches_model = builder_scores.filter(pl.col("parent_id") != 0).explode("query_scores").with_columns(
+            pl.col("query_scores").struct.field("candidate").alias("model_name"),
+            pl.col("query_scores").struct.field("score").alias("model_score"),
+        ).sort("model_score", descending=True).limit(top_n_ind)
+
+        best_matches_model_brand = best_matches_model.join(best_matches_brand, how="cross", suffix=suffix).with_columns(
+            self.similarity_metric(pl.col("model_score"), pl.col("brand_score")).alias("combined_score")
+        ).sort("combined_score", descending=True).limit(top_n).select(
+            pl.col("name").alias("model_name"),
+            pl.col(f"name{suffix}").alias("brand_name"),
+            pl.col("id").alias("model_id"),
+            pl.col(f"id{suffix}").alias("brand_id"),
+            pl.col("combined_score"),
+        )
+
+        return best_matches_model_brand
+
 
     def get_best_matches_lazy(self, queries: List[str], top_n: int = 10):
         builder_joined = self.get_joined_scores_lazy(queries)

@@ -69,10 +69,7 @@ class SidewallUnwrapper:
             strip_slide = np.concatenate(
                 [polar_image[:, w // 2 :], polar_image[:, : w // 2]], axis=1
             )
-            border = np.zeros(
-                (self.config.concat_border_size, w, c), dtype=polar_image.dtype
-            )
-            polar_image = np.concatenate([polar_image, border, strip_slide], axis=0)
+            polar_image = np.concatenate([polar_image, strip_slide], axis=0)
 
         lab_image = cv2.cvtColor(polar_image, cv2.COLOR_RGB2LAB)
         lab_image[:, :, 0] = self.clahe.apply(lab_image[:, :, 0])

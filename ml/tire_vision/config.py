@@ -19,19 +19,16 @@ CLASS_COLORS = {
     "bad": (255, 0, 0),
 }
 
-SYSTEM_OCR_PROMPT = """You are "InternVL-OCR", an expert model for extracting legible, in-frame text from photographs of wheel-and-tire assemblies.
+SYSTEM_OCR_PROMPT = """You are "Tire-VLM-OCR", an expert model for extracting legible, in-frame text from photographs of wheel-and-tire assemblies.
 
 PRIMARY GOAL
-Return only text that can be clearly seen in the image AND that helps identify the tire.
-Key attributes, in strict order of importance:
+Return ALL the text that can be clearly seen on the tire
+Key attributes, (Must be always present in your response):
 
 1. Tire size – forms like "<width>/<aspect_ratio>R<diameter>( <load_index><speed_index>)?"
-   - Accept the variants ZR / RF / XL, etc.  Example: "245/35ZR20 95Y".
-2. Brand name – e.g. "MICHELIN", "KAMA".
+   - Example: "245/35ZR20 95Y".
+2. Brand name – e.g. "MICHELIN", "KAMA", "NOKIAN TYRES".
 3. Model or sub-brand – e.g. "Pilot Sport 4 S", "EURO-236".
-
-DO NOT RETURN
-- URLs, QR codes, DOT/date codes, "Made in ...", E-markings, warnings, production-plant codes, or tiny embossed text unrelated to identification.
 
 HALLUCINATION RULE
 If a glyph or word is ambiguous or clipped, leave it out.  Never invent characters.
@@ -57,27 +54,23 @@ Return: ["Continental ContiWinterContact TS 850 P",
          "850",
          "P"]
 
-QUALITY HINTS
-- Prefer high-contrast, in-focus regions.
-- Ignore mirrored / upside-down duplicates of the same string.
-- Treat hyphen "-" as significant; treat whitespace collapse as delimiter.
+Return NOTHING except what is visible (do just not repeat examples)."""
 
-Return NOTHING except what is visible."""
-
-OCR_PROMPT = """Extract every clearly legible string on the tire that relates to its identification.
+OCR_PROMPT = """Extract every string on the tire.
 
 Output one JSON object with the following keys:
 
 - "strings": string[]   // unique, relevance-filtered tokens and token-groups (see rules)
 - "tire_size": string   // the exact size string (regex: \d{3}/\d{2}R\d{2}\w?(?:\s+\d{2,3}\w)?)
 
+Hint: "tire_size" string should be among "strings"
+
 Constraints
 -----------
-1. Return ONLY the JSON object—no prose, no comments.
+1. Return the JSON object—no prose, no comments.
 2. If multiple size strings occur, choose the MOST complete (includes load & speed indexes).
-3. If no valid size is visible, set "tire_size": "".
-4. The order of "strings" is arbitrary; duplicates (case-insensitive) are forbidden.
-5. Preserve original spacing, hyphens, and letter-case exactly as read.
+3. The order of "strings" is arbitrary; duplicates (case-insensitive) are forbidden.
+4. Preserve original spacing, hyphens, and letter-case exactly as read.
 
 Examples
 ========
@@ -157,23 +150,25 @@ class SidewallUnwrapperConfig:
     concat_strip: bool = True
     mask_postprocess_ksize: int = 21
     rectify_aspect_ratio_threshold: float = 1.1
-    polar_dsize: Tuple[int, int] = (700, 2000)
+    polar_dsize: Tuple[int, int] = (1000, 2500)
     concat_border_size: int = 5
 
 
 @dataclass
 class OCRConfig:
     model_name: str = "opengvlab/internvl3-14b"
+    # model_name: str = "qwen/qwen2.5-vl-72b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
     providers_list: List[str] = field(default_factory=lambda: [])
-    top_p: float = 0.9
+    top_p: float = 0.95
     temperature: float = 0.7
     presence_penalty: float = 0
     frequency_penalty: float = 0
     max_completion_tokens: int = 1024
+    max_image_size: int = 448 * 5
 
 
 @dataclass
@@ -193,7 +188,7 @@ class IndexConfig:
         "harmonic_mean",
         "geometric_mean",
         "euclidean",
-    ] = "harmonic_mean"
+    ] = "arithmetic_mean"
 
 
 @dataclass

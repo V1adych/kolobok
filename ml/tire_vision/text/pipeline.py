@@ -4,6 +4,7 @@ from traceback import format_exc
 import json
 
 import numpy as np
+import cv2
 
 from tire_vision.text.preprocessor.model import SidewallSegmentator
 from tire_vision.text.preprocessor.unwrapper import SidewallUnwrapper
@@ -36,6 +37,8 @@ class TireAnnotationPipeline:
         self.ocr = OCRPipeline(ocr_config)
         self.index = IndexPipeline(index_config)
 
+        self.max_image_size = ocr_config.max_image_size
+
         self.logger = logging.getLogger("tire_annotation_pipeline")
         self.logger.info("TireAnnotationPipeline initialized")
 
@@ -61,14 +64,18 @@ class TireAnnotationPipeline:
         self.logger.info(
             f"Original image shape: {image.shape}, unwrapped image shape: {getattr(unwrapped_image, 'shape', None)}"
         )
+
         images_for_ocr = [image]
         if unwrap_success:
             self.logger.info("Unwrap successful, using both images for OCR")
-            images_for_ocr = [unwrapped_image]
+            # images_for_ocr = [unwrapped_image]
+            images_for_ocr.append(unwrapped_image)
         else:
             self.logger.warning(
                 "Unwrap failed, using only original image for OCR. This could lead to less accurate results."
             )
+
+        images_for_ocr = list(map(self._dynamic_resize, images_for_ocr))
 
         self.logger.info("Running OCRPipeline")
         ocr_result = self.ocr.extract_tire_info(images_for_ocr)
@@ -88,3 +95,12 @@ class TireAnnotationPipeline:
         self.logger.info(f"TireAnnotationPipeline completed in {latency:.4f} seconds")
 
         return combined_result
+
+    def _dynamic_resize(self, image: np.ndarray) -> np.ndarray:
+        h, w = image.shape[:2]
+        if max(h, w) > self.max_image_size:
+            scale = self.max_image_size / max(h, w)
+            new_h = int(h * scale)
+            new_w = int(w * scale)
+            return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        return image
