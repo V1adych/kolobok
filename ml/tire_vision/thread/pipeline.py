@@ -6,25 +6,16 @@ import numpy as np
 from tire_vision.thread.segmentator.model import ThreadSegmentator
 from tire_vision.thread.spikes.pipeline import SpikePipeline
 from tire_vision.thread.depth.model import DepthRegressor
-from tire_vision.config import (
-    ThreadSegmentatorConfig,
-    SpikePipelineConfig,
-    DepthRegressorConfig,
-)
+from tire_vision.config import TireThreadPipelineConfig
 
 import logging
 
 
 class TireThreadPipeline:
-    def __init__(
-        self,
-        segmentator_config: ThreadSegmentatorConfig,
-        spike_pipeline_config: SpikePipelineConfig,
-        depth_regressor_config: DepthRegressorConfig,
-    ):
-        self.segmentator = ThreadSegmentator(segmentator_config)
-        self.spike_pipeline = SpikePipeline(spike_pipeline_config)
-        self.depth_regressor = DepthRegressor(depth_regressor_config)
+    def __init__(self, config: TireThreadPipelineConfig):
+        self.segmentator = ThreadSegmentator(config.thread_segmentator_config)
+        self.spike_pipeline = SpikePipeline(config.spike_pipeline_config)
+        self.depth_regressor = DepthRegressor(config.depth_regressor_config)
 
         self.logger = logging.getLogger("tire_thread_pipeline")
 

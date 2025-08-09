@@ -103,13 +103,7 @@ async def main():
     endpoint = f"{base_url}/api/v1/extract_information"
 
     cfg = TireVisionConfig()
-    # We still need the pipeline to resolve ground truth ids to names
-    pipeline = TireAnnotationPipeline(
-        sidewall_segmentator_config=cfg.sidewall_segmentator_config,
-        sidewall_unwrapper_config=cfg.sidewall_unwrapper_config,
-        ocr_config=cfg.ocr_config,
-        index_config=cfg.index_config,
-    )
+    pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
 
     input_names = list(map(lambda x: x.stem, input_dir.iterdir()))
     input_names.sort()

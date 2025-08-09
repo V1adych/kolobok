@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 import logging
 
-from mimetypes import suffix_map
 import time
 from pathlib import Path
 from typing import Optional, List

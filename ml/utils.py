@@ -5,21 +5,18 @@ import cv2
 
 from tire_vision.thread.pipeline import TireThreadPipeline
 from tire_vision.text.pipeline import TireAnnotationPipeline
-from tire_vision.config import TireVisionConfig, CLASS_MAPPING, CLASS_COLORS
+from tire_vision.config import (
+    TireVisionConfig,
+    CLASS_MAPPING,
+    CLASS_COLORS,
+    TireAnnotationPipelineConfig,
+    TireThreadPipelineConfig,
+)
 
 
 cfg = TireVisionConfig()
-thread_pipeline = TireThreadPipeline(
-    segmentator_config=cfg.thread_segmentator_config,
-    spike_pipeline_config=cfg.spike_pipeline_config,
-    depth_regressor_config=cfg.depth_regressor_config,
-)
-annotation_pipeline = TireAnnotationPipeline(
-    sidewall_segmentator_config=cfg.sidewall_segmentator_config,
-    sidewall_unwrapper_config=cfg.sidewall_unwrapper_config,
-    ocr_config=cfg.ocr_config,
-    index_config=cfg.index_config,
-)
+thread_pipeline = TireThreadPipeline(cfg.thread_pipeline_config)
+annotation_pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
 
 
 def get_thread_stats(image: np.ndarray) -> dict[str, Any]:

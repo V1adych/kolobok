@@ -12,12 +12,7 @@ logging.basicConfig(
 
 def main():
     config = TireVisionConfig()
-    pipeline = TireAnnotationPipeline(
-        config.sidewall_segmentator_config,
-        config.sidewall_unwrapper_config,
-        config.ocr_config,
-        config.index_config,
-    )
+    pipeline = TireAnnotationPipeline(config.annotation_pipeline_config)
 
     image_path = "/Users/n-zagainov/kolobok/ml/data/annotations/39.jpg"
     image = cv2.cvtColor(cv2.imread(image_path), cv2.COLOR_BGR2RGB)

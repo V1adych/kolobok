@@ -110,7 +110,7 @@ ort_opts.inter_op_num_threads = 1
 ort_providers = ["CPUExecutionProvider"]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ThreadSegmentatorConfig:
     thread_segmentator_onnx: str = "onnx/thread_segmentator.onnx"
     confidence_threshold: float = 0.5
@@ -119,7 +119,7 @@ class ThreadSegmentatorConfig:
     min_tire_pixels: int = 96
 
 
-@dataclass
+@dataclass(frozen=True)
 class SpikePipelineConfig:
     spike_segmentator_onnx: str = "onnx/spike_segmentator.onnx"
     spike_classifier_onnx: str = "onnx/spike_classifier.onnx"
@@ -130,20 +130,20 @@ class SpikePipelineConfig:
     crop_size: int = 32
 
 
-@dataclass
+@dataclass(frozen=True)
 class DepthRegressorConfig:
     depth_regressor_onnx: str = "onnx/depth_regressor.onnx"
     resize_shape: Tuple[int, int] = (512, 512)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SidewallSegmentatorConfig:
     sidewall_segmentator_onnx: str = "onnx/sidewall_segmentator.onnx"
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SidewallUnwrapperConfig:
     clahe_clip_limit: float = 2.0
     clahe_tile_grid_size: Tuple[int, int] = (8, 8)
@@ -154,24 +154,23 @@ class SidewallUnwrapperConfig:
     concat_border_size: int = 5
 
 
-@dataclass
+@dataclass(frozen=True)
 class OCRConfig:
-    model_name: str = "opengvlab/internvl3-14b"
-    # model_name: str = "qwen/qwen2.5-vl-72b-instruct"
+    model_name: str = "qwen/qwen2.5-vl-72b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-    providers_list: List[str] = field(default_factory=lambda: [])
+    providers_list: List[str] = field(default_factory=lambda: ["parasail"])
     top_p: float = 0.95
     temperature: float = 0.7
     presence_penalty: float = 0
     frequency_penalty: float = 0
     max_completion_tokens: int = 1024
-    max_image_size: int = 448 * 5
+    max_image_size: int = 1536
 
 
-@dataclass
+@dataclass(frozen=True)
 class IndexConfig:
     db_host: str = os.environ.get("DB_HOST", "mysql_db")
     db_port: int = int(os.environ.get("DB_PORT", "3306"))
@@ -191,12 +190,26 @@ class IndexConfig:
     ] = "arithmetic_mean"
 
 
-@dataclass
+@dataclass(frozen=True)
+class TireAnnotationPipelineConfig:
+    sidewall_segmentator_config: SidewallSegmentatorConfig = SidewallSegmentatorConfig()
+    sidewall_unwrapper_config: SidewallUnwrapperConfig = SidewallUnwrapperConfig()
+    ocr_config: OCRConfig = OCRConfig()
+    index_config: IndexConfig = IndexConfig()
+    max_image_size: int = 448 * 5
+    image_composition_strategy: Literal["unwrapped", "both"] = "unwrapped"
+
+
+@dataclass(frozen=True)
+class TireThreadPipelineConfig:
+    thread_segmentator_config: ThreadSegmentatorConfig = ThreadSegmentatorConfig()
+    spike_pipeline_config: SpikePipelineConfig = SpikePipelineConfig()
+    depth_regressor_config: DepthRegressorConfig = DepthRegressorConfig()
+
+
+@dataclass(frozen=True)
 class TireVisionConfig:
-    thread_segmentator_config = ThreadSegmentatorConfig()
-    spike_pipeline_config = SpikePipelineConfig()
-    depth_regressor_config = DepthRegressorConfig()
-    sidewall_segmentator_config = SidewallSegmentatorConfig()
-    sidewall_unwrapper_config = SidewallUnwrapperConfig()
-    ocr_config = OCRConfig()
-    index_config = IndexConfig()
+    thread_pipeline_config: TireThreadPipelineConfig = TireThreadPipelineConfig()
+    annotation_pipeline_config: TireAnnotationPipelineConfig = (
+        TireAnnotationPipelineConfig()
+    )
