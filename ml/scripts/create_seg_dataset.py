@@ -73,5 +73,6 @@ def main():
         cv2.imwrite(str(dest_mask_path), mask)
 
 
+
 if __name__ == "__main__":
     main()

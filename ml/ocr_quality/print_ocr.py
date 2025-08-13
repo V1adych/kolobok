@@ -1,74 +1,23 @@
 from pathlib import Path
-import pickle as pkl
 import asyncio
 import json
+import base64
+import io
+import httpx
+import time
 
-from numpy import absolute
 from rapidfuzz import fuzz
 import cv2
 import polars as pl
 from tqdm import tqdm
 
-from tire_vision.text.preprocessor.model import SidewallSegmentator
-from tire_vision.text.preprocessor.unwrapper import SidewallUnwrapper
-from tire_vision.text.ocr.pipeline import OCRPipeline
-from tire_vision.text.index.pipeline import IndexPipeline
-from tire_vision.config import (
-    SidewallSegmentatorConfig,
-    SidewallUnwrapperConfig,
-    OCRConfig,
-    IndexConfig,
-)
+from tire_vision.text.pipeline import TireAnnotationPipeline
+from tire_vision.config import TireVisionConfig
 
 import logging
 
-logging.basicConfig(level=logging.CRITICAL)
 
-
-def get_cached_results(
-    pkl_path: str,
-    segmentator: SidewallSegmentator,
-    unwrapper: SidewallUnwrapper,
-    input_dir: Path,
-):
-    if Path(pkl_path).exists():
-        logging.info(f"Loading cached results from {pkl_path}")
-        with open(pkl_path, "rb") as f:
-            return pkl.load(f)
-
-    logging.info("No cached results found, processing from scratch")
-    results = []
-
-    for img_path in tqdm(sorted(list(input_dir.iterdir()))):
-        logging.info(f"Processing {img_path}")
-        img = cv2.imread(str(img_path))
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        mask = segmentator.forward(img)
-        unwrapped = unwrapper.get_unwrapped_tire(img, mask)
-        unwrapped = cv2.cvtColor(unwrapped, cv2.COLOR_RGB2BGR)
-
-        images = [img, unwrapped]
-        results.append(
-            {
-                "img_path": str(img_path),
-                "images": images,
-            }
-        )
-
-    with open(pkl_path, "wb") as f:
-        pkl.dump(results, f)
-
-    return results
-
-
-def get_cached_ocr_results(pkl_path: str):
-    if not Path(pkl_path).exists():
-        logging.info(f"No cached OCR results found, processing from scratch")
-        return []
-
-    logging.info(f"Loading cached OCR results from {pkl_path}")
-    with open(pkl_path, "rb") as f:
-        return pkl.load(f)
+logging.basicConfig(level=logging.CRITICAL, force=True)
 
 
 def read_json(path: Path):
@@ -82,6 +31,9 @@ def check_correct(gt: dict[str, object], candidates: list[dict[str, object]]):
         max_ratio_brand=0,
         max_ratio_model=0,
     )
+    if not candidates:
+        return result
+
     for candidate in candidates:
         if (
             candidate["model_id"] == gt["model_id"]
@@ -91,6 +43,14 @@ def check_correct(gt: dict[str, object], candidates: list[dict[str, object]]):
             result["max_ratio_brand"] = 1
             result["max_ratio_model"] = 1
             return result
+        
+        if candidate["brand_id"] == gt["brand_id"]:
+            result["absolutely_correct"] = 0.5
+            result["max_ratio_brand"] = 1
+
+        if candidate["model_id"] == gt["model_id"]:
+            result["absolutely_correct"] = 0.5
+            result["max_ratio_model"] = 1
 
         ratio_brand = fuzz.ratio(candidate["brand_name"], gt["brand_name"]) / 100
         ratio_model = fuzz.ratio(candidate["model_name"], gt["model_name"]) / 100
@@ -100,104 +60,149 @@ def check_correct(gt: dict[str, object], candidates: list[dict[str, object]]):
     return result
 
 
-def main():
-    cfg_segmentator = SidewallSegmentatorConfig()
-    cfg_unwrapper = SidewallUnwrapperConfig()
-    cfg_ocr = OCRConfig()
-    cfg_index = IndexConfig()
-    cfg_index.db_host = "localhost"
+def get_image_bytes(image: cv2.typing.MatLike) -> str:
+    _, buffer = cv2.imencode(".jpg", image)
+    img_bytes = io.BytesIO(buffer)
+    return base64.b64encode(img_bytes.read()).decode("utf-8")
 
-    model = SidewallSegmentator(cfg_segmentator)
-    unwrapper = SidewallUnwrapper(cfg_unwrapper)
-    ocr = OCRPipeline(cfg_ocr)
-    index = IndexPipeline(cfg_index)
-    db = index.database
 
+async def get_prediction(
+    client: httpx.AsyncClient,
+    image: cv2.typing.MatLike,
+    endpoint: str,
+    token: str,
+    semaphore: asyncio.Semaphore,
+):
+    async with semaphore:
+        start_time = time.time()
+        image_bytes = get_image_bytes(image)
+        headers = {"Authorization": f"Bearer {token}"}
+        data = {"image": image_bytes, "model": "ocr"}
+        try:
+            response = await client.post(endpoint, json=data, headers=headers, timeout=30)
+            response.raise_for_status()
+            end_time = time.time()
+            return response.json(), end_time - start_time
+        except httpx.HTTPStatusError as e:
+            logging.error(f"HTTP error occurred: {e}")
+            return None, 0
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+            return None, 0
+
+
+async def main():
     input_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations")
     gt_paths = Path("/Users/n-zagainov/kolobok/ml/data/annotations_processed")
 
-    results = get_cached_results(
-        pkl_path="results.pkl", 
-        segmentator=model,
-        unwrapper=unwrapper,
-        input_dir=input_dir,
+    # base_url = "http://localhost:8000"
+    # base_url = "https://tire-vision.duckdns.org"
+    base_url = "http://51.250.41.44:8000"
+    # token = "kolobok_token"
+    token = "a2400743-8a61-4bcc-82d7-ca3fc160d9f4"
+    endpoint = f"{base_url}/api/v1/extract_information"
+
+    cfg = TireVisionConfig()
+
+    pipeline = TireAnnotationPipeline(
+        config=cfg.annotation_pipeline_config
     )
 
-    for result in results:
-        img_path = Path(result["img_path"])
-        img_name = img_path.stem
-        Path("/Users/n-zagainov/kolobok/ml/data/annotations_unwrapped").mkdir(parents=True, exist_ok=True)
-        save_path = Path("/Users/n-zagainov/kolobok/ml/data/annotations_unwrapped") / f"{img_name}.png"
-        second_image = result["images"][1]
-        cv2.imwrite(str(save_path), second_image)
+    input_names = list(map(lambda x: x.stem, input_dir.iterdir()))
+    input_names.sort()
+
+    images_to_process = []
+    gts_to_process = []
+
+    for name in tqdm(input_names, desc="Preparing data"):
+        img_path = input_dir / f"{name}.jpg"
+        gt_path = gt_paths / f"{name}.json"
+
+        image = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        gt_data_raw = read_json(gt_path)
+
+        gt_data_raw = {
+            "model": int(gt_data_raw["model"]) if gt_data_raw["model"] is not None else None,
+            "brand": int(gt_data_raw["brand"]) if gt_data_raw["brand"] is not None else None,
+        }
+
+        if gt_data_raw["model"] is None or gt_data_raw["brand"] is None:
+            continue
+
+        model_name = (
+            pipeline.index.database.table.filter(pl.col("id") == gt_data_raw["model"])
+            .select(pl.col("name").alias("model_name"))
+            .to_dicts()[0]["model_name"]
+        )
+        brand_name = (
+            pipeline.index.database.table.filter(pl.col("id") == gt_data_raw["brand"])
+            .select(pl.col("name").alias("brand_name"))
+            .to_dicts()[0]["brand_name"]
+        )
+
+        gt_data = {
+            "name": name,
+            "model_id": gt_data_raw["model"],
+            "brand_id": gt_data_raw["brand"],
+            "model_name": model_name,
+            "brand_name": brand_name,
+        }
+        images_to_process.append(image)
+        gts_to_process.append(gt_data)
+
+    all_results = []
+    semaphore = asyncio.Semaphore(5)
+
+    async def get_and_process(
+        client: httpx.AsyncClient,
+        image: cv2.typing.MatLike,
+        gt_data: dict,
+        endpoint: str,
+        token: str,
+        semaphore: asyncio.Semaphore,
+    ):
+        output, exec_time = await get_prediction(client, image, endpoint, token, semaphore)
+
+        if output is None:
+            return None
+
+        result = check_correct(gt_data, output.get("index_results", []))
+        result["gt_model"] = gt_data["model_name"]
+        result["gt_brand"] = gt_data["brand_name"]
+        result["is_tire_size_nonempty"] = int(bool(output.get("tire_size")))
+        result["raw_output"] = output
+        result["execution_time"] = exec_time
+        result_with_name = {"name": gt_data["name"], **result}
+
+        return result_with_name
 
 
-    # joined_table = (
-    #     db.table.filter(pl.col("parent_id") != 0)
-    #     .join(
-    #         db.table.filter(pl.col("parent_id") == 0),
-    #         left_on="parent_id",
-    #         right_on="id",
-    #         how="left",
-    #         suffix="_right",
-    #     )
-    #     .select(
-    #         pl.col("id").alias("model_id"),
-    #         pl.col("name").alias("model_name"),
-    #         pl.col("parent_id").alias("brand_id"),
-    #         pl.col("name_right").alias("brand_name"),
-    #     )
-    # )
-    # num_samples = 0
-    # total_correct = 0
-    # for result in results:
-    #     img_path = result["img_path"]
-    #     gt_path = gt_paths / f"{Path(img_path).stem}.json"
-    #     strings = result["ocr_result"]["strings"]
-    #     gt = read_json(gt_path)
-    #     if gt["model"] is None or gt["brand"] is None:
-    #         continue
-    #     gt = joined_table.filter(
-    #         pl.col("model_id") == int(gt["model"]),
-    #         pl.col("brand_id") == int(gt["brand"]),
-    #     ).to_dicts()[0]
+    async with httpx.AsyncClient() as client:
+        tasks = [
+            get_and_process(client, image, gt, endpoint, token, semaphore)
+            for image, gt in zip(images_to_process[:1], gts_to_process)
+        ]
 
-    #     index_results = index.get_best_matches(strings)
-    #     index_results = [
-    #         {
-    #             k: item[k]
-    #             for k in [
-    #                 "model_id",
-    #                 "model_name",
-    #                 "brand_id",
-    #                 "brand_name",
-    #                 "combined_score",
-    #             ]
-    #         }
-    #         for item in index_results
-    #     ]
+        for f in tqdm(
+            asyncio.as_completed(tasks),
+            total=len(tasks),
+            desc="Getting predictions",
+        ):
+            result = await f
+            if result:
+                all_results.append(result)
 
-    #     print(f"FILES: {img_path}, {gt_path}")
-    #     # logging.info(f"GT:\n{json.dumps(gt, indent=4)}")
-    #     # logging.info(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
-    #     check_results = check_correct(gt, index_results)
-    #     absolute_correct = check_results["absolutely_correct"]
-    #     max_ratio_brand = check_results["max_ratio_brand"]
-    #     max_ratio_model = check_results["max_ratio_model"]
-    #     print(
-    #         f"ABSOLUTE CORRECT: {absolute_correct}, MAX RATIO BRAND: {max_ratio_brand}, MAX RATIO MODEL: {max_ratio_model}"
-    #     )
-    #     if absolute_correct == 0:
-    #         print(f"STRINGS:\n{strings}")
-    #         print(f"GT:\n{json.dumps(gt, indent=4)}")
-    #         print(f"INDEX RESULTS:\n{json.dumps(index_results, indent=4)}")
+    if all_results:
+        df = pl.DataFrame(all_results)
+        print(df)
+        print("\nAll metrics:")
+        print(df)
+        print("\nMean metrics:")
+        print(df.select(pl.exclude("name", "raw_output")).mean())
 
-    #     print("-" * 100)
-    #     total_correct += absolute_correct
-    #     num_samples += 1
-
-    # print(f"TOTAL CORRECT: {total_correct}, NUM SAMPLES: {num_samples}")
+        with open("ocr_results.json", "w") as f:
+            json.dump(all_results, f)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

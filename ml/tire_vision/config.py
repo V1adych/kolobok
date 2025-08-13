@@ -57,10 +57,12 @@ Present the extracted text as a JSON object with keys "strings", "tire_size".
 Do not include any reasoning or explanations, only the final JSON object.
 
 Example of a valid response:
+```json
 {
     "strings": ["MICHELIN", "Pilot Sport 4 S", "Pilot Sport", "Pilot", "Sport", "Sport 4 S", "245/35ZR20", "95Y", "245/35ZR20 95Y"],
     "tire_size": "245/35ZR20 95Y"
 }
+```
 """
 
 num_gunicorn_workers = int(os.environ.get("GUNICORN_WORKERS", "1"))
@@ -75,19 +77,21 @@ ort_opts.inter_op_num_threads = 1
 ort_providers = ["OpenVINOExecutionProvider"]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ThreadSegmentatorConfig:
     thread_segmentator_onnx: str = "onnx/thread_segmentator.onnx"
+
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
     padding_frac: float = 0.01
     min_tire_pixels: int = 96
 
 
-@dataclass
+@dataclass(frozen=True)
 class SpikePipelineConfig:
     spike_segmentator_onnx: str = "onnx/spike_segmentator.onnx"
     spike_classifier_onnx: str = "onnx/spike_classifier.onnx"
+
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
     erosion_iterations: int = 0
@@ -95,71 +99,98 @@ class SpikePipelineConfig:
     crop_size: int = 32
 
 
-@dataclass
+@dataclass(frozen=True)
 class DepthRegressorConfig:
     depth_regressor_onnx: str = "onnx/depth_regressor.onnx"
+
     resize_shape: Tuple[int, int] = (512, 512)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SidewallSegmentatorConfig:
     sidewall_segmentator_onnx: str = "onnx/sidewall_segmentator.onnx"
+
     confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SidewallUnwrapperConfig:
     clahe_clip_limit: float = 2.0
     clahe_tile_grid_size: Tuple[int, int] = (8, 8)
-    concat_strip: bool = True
-    mask_postprocess_ksize: int = 21
+
     rectify_aspect_ratio_threshold: float = 1.1
-    polar_dsize: Tuple[int, int] = (700, 2000)
-    concat_border_size: int = 5
+    polar_dsize: Tuple[int, int] = (1000, 2500)
+    mask_postprocess_ksize: int = 21
+    concat_strip: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class OCRConfig:
-    model_name: str = "thudm/glm-4.1v-9b-thinking"
+    model_name: str = "qwen/qwen2.5-vl-72b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
+    providers_list: List[str] = field(default_factory=lambda: ["parasail"])
+
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-    providers_list: List[str] = field(default_factory=lambda: [])
-    top_p: float = 0.9
+
+    top_p: float = 0.95
     temperature: float = 0.7
     presence_penalty: float = 0
     frequency_penalty: float = 0
     max_completion_tokens: int = 1024
 
 
-@dataclass
+@dataclass(frozen=True)
 class IndexConfig:
     db_host: str = os.environ.get("DB_HOST", "mysql_db")
     db_port: int = int(os.environ.get("DB_PORT", "3306"))
     db_name: str = os.environ["MYSQL_DATABASE"]
     db_user: str = "root"
     db_password: str = os.environ["MYSQL_ROOT_PASSWORD"]
+
     table_name: str = "models"
-    max_query_results: int = 5
+
     table_cache_path: str = "models.parquet"
     table_cache_ttl_seconds: int = 3600
-    similarity_metric: Literal[
+
+    max_query_results: int = 5
+    max_brand_matches: int = 50
+    max_model_matches: int = 100
+    brand_model_match_bonus: float = 0.1
+
+    similarity_metric: Literal["levenshtein", "jaro_winkler"] = "jaro_winkler"
+    comb_metric: Literal[
         "product",
         "arithmetic_mean",
         "harmonic_mean",
         "geometric_mean",
         "euclidean",
-    ] = "harmonic_mean"
+    ] = "arithmetic_mean"
 
 
-@dataclass
+@dataclass(frozen=True)
+class TireAnnotationPipelineConfig:
+    sidewall_segmentator_config: SidewallSegmentatorConfig = SidewallSegmentatorConfig()
+    sidewall_unwrapper_config: SidewallUnwrapperConfig = SidewallUnwrapperConfig()
+    ocr_config: OCRConfig = OCRConfig()
+    index_config: IndexConfig = IndexConfig()
+
+    max_image_size: int = 2048
+    image_composition_strategy: Literal["unwrapped", "both"] = "unwrapped"
+
+
+@dataclass(frozen=True)
+class TireThreadPipelineConfig:
+    thread_segmentator_config: ThreadSegmentatorConfig = ThreadSegmentatorConfig()
+    spike_pipeline_config: SpikePipelineConfig = SpikePipelineConfig()
+    depth_regressor_config: DepthRegressorConfig = DepthRegressorConfig()
+
+
+@dataclass(frozen=True)
 class TireVisionConfig:
-    thread_segmentator_config = ThreadSegmentatorConfig()
-    spike_pipeline_config = SpikePipelineConfig()
-    depth_regressor_config = DepthRegressorConfig()
-    sidewall_segmentator_config = SidewallSegmentatorConfig()
-    sidewall_unwrapper_config = SidewallUnwrapperConfig()
-    ocr_config = OCRConfig()
-    index_config = IndexConfig()
+    thread_pipeline_config: TireThreadPipelineConfig = TireThreadPipelineConfig()
+    annotation_pipeline_config: TireAnnotationPipelineConfig = (
+        TireAnnotationPipelineConfig()
+    )
