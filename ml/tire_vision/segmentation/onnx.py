@@ -13,10 +13,12 @@ class OnnxSegmentator:
         onnx_path: str,
         resize_shape: Tuple[int, int],
         threshold: Optional[float] = None,
+        resize_mask_shape: Optional[Tuple[int, int]] = None,
     ):
         self.onnx_path = onnx_path
         self.resize_shape = resize_shape
         self.threshold = threshold
+        self.resize_mask_shape = resize_mask_shape
         self.session = ort.InferenceSession(
             self.onnx_path,
             providers=ort_providers,
@@ -47,7 +49,10 @@ class OnnxSegmentator:
 
         logits_squeezed = np.squeeze(logits, axis=(0, 1))
         probs = 1 / (1 + np.exp(-logits_squeezed))
-        probs = cv2.resize(probs, (w, h), interpolation=cv2.INTER_LINEAR)
+        resize_mask_shape = (
+            (w, h) if self.resize_mask_shape is None else self.resize_mask_shape
+        )
+        probs = cv2.resize(probs, resize_mask_shape, interpolation=cv2.INTER_LINEAR)
 
         if self.threshold is not None:
             return (probs > self.threshold).astype(np.uint8) * 255

@@ -31,8 +31,7 @@ class TireThreadPipeline:
                 "detail": "Tire not found on the image, or it is too small",
             }
 
-        spikes = self.spike_pipeline.detect_spikes(cropped_image)
-
+        spikes = self.spike_pipeline(cropped_image)
         depth = self.depth_regressor(cropped_image)
 
         latency = time.perf_counter() - start_time

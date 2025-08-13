@@ -1,5 +1,4 @@
 from pathlib import Path
-import pickle as pkl
 import asyncio
 import json
 import base64
@@ -7,8 +6,6 @@ import io
 import httpx
 import time
 
-from numpy import absolute
-from openai import images
 from rapidfuzz import fuzz
 import cv2
 import polars as pl
@@ -98,12 +95,18 @@ async def main():
     input_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations")
     gt_paths = Path("/Users/n-zagainov/kolobok/ml/data/annotations_processed")
 
-    base_url = "http://localhost:8000"
-    token = "kolobok_token"
+    # base_url = "http://localhost:8000"
+    # base_url = "https://tire-vision.duckdns.org"
+    base_url = "http://51.250.41.44:8000"
+    # token = "kolobok_token"
+    token = "a2400743-8a61-4bcc-82d7-ca3fc160d9f4"
     endpoint = f"{base_url}/api/v1/extract_information"
 
     cfg = TireVisionConfig()
-    pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
+
+    pipeline = TireAnnotationPipeline(
+        config=cfg.annotation_pipeline_config
+    )
 
     input_names = list(map(lambda x: x.stem, input_dir.iterdir()))
     input_names.sort()
@@ -177,7 +180,7 @@ async def main():
     async with httpx.AsyncClient() as client:
         tasks = [
             get_and_process(client, image, gt, endpoint, token, semaphore)
-            for image, gt in zip(images_to_process, gts_to_process)
+            for image, gt in zip(images_to_process[:1], gts_to_process)
         ]
 
         for f in tqdm(
