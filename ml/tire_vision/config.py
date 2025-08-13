@@ -153,7 +153,7 @@ class IndexConfig:
     table_name: str = "models"
 
     table_cache_path: str = "models.parquet"
-    table_cache_ttl_seconds: int = 3600
+    table_cache_ttl_seconds: int = float("inf")
 
     max_query_results: int = 5
     max_brand_matches: int = 50
