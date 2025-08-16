@@ -18,6 +18,7 @@ class ModelConfig:
     ckpt_path: str
     onnx_path: str
     input_shape: Tuple[int, int] = (32, 32)
+    num_classes: int = 3
 
 
 @dataclass
@@ -47,7 +48,7 @@ def main():
     state_dict = load_checkpoint(args.spike.ckpt_path)
 
     model = googlenet(weights=GoogLeNet_Weights.IMAGENET1K_V1)
-    model.fc = nn.Linear(1024, 3)
+    model.fc = nn.Linear(1024, args.spike.num_classes)
 
     model.load_state_dict(state_dict)
     model.eval()
@@ -57,10 +58,14 @@ def main():
         dummy_input,
         args.spike.onnx_path,
         verbose=True,
-        opset_version=17,
+        opset_version=23,
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
+        dynamic_axes={
+            "input": {0: "batch_size"}, 
+            "output": {0: "batch_size"},
+        },
     )
 
     logger.info(f"Saved {args.spike.onnx_path}")

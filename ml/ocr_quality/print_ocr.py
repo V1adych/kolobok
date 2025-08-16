@@ -97,7 +97,8 @@ async def main():
 
     # base_url = "http://localhost:8000"
     # base_url = "https://tire-vision.duckdns.org"
-    base_url = "http://51.250.41.44:8000"
+    # base_url = "http://51.250.41.44:8000"
+    base_url = "http://193.168.196.143:8000"
     # token = "kolobok_token"
     token = "a2400743-8a61-4bcc-82d7-ca3fc160d9f4"
     endpoint = f"{base_url}/api/v1/extract_information"

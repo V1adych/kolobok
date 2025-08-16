@@ -96,7 +96,7 @@ class SpikePipelineConfig:
     resize_shape: Tuple[int, int] = (512, 512)
     erosion_iterations: int = 0
     dilation_iterations: int = 0
-    crop_size: int = 32
+    crop_size: int = 64
 
 
 @dataclass(frozen=True)
@@ -153,7 +153,7 @@ class IndexConfig:
     table_name: str = "models"
 
     table_cache_path: str = "models.parquet"
-    table_cache_ttl_seconds: int = 3600
+    table_cache_ttl_seconds: int = float("inf")
 
     max_query_results: int = 5
     max_brand_matches: int = 50

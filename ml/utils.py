@@ -9,8 +9,6 @@ from tire_vision.config import (
     TireVisionConfig,
     CLASS_MAPPING,
     CLASS_COLORS,
-    TireAnnotationPipelineConfig,
-    TireThreadPipelineConfig,
 )
 
 
@@ -35,9 +33,9 @@ def add_annotations(image: np.ndarray, annotations: list[dict[str, Any]]) -> np.
         x, y, w, h = annotation["box"]
         class_name = CLASS_MAPPING[annotation["class"]]
         color = CLASS_COLORS[class_name]
-        cv2.rectangle(image_bgr, (x, y), (x + w, y + h), color, 2)
+        cv2.rectangle(image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), color, 2)
         cv2.putText(
-            image_bgr, class_name, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2
+            image_bgr, class_name, (x - w // 2, y + h // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 3
         )
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
