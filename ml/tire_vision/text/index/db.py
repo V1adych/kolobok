@@ -193,10 +193,10 @@ class TireModelDatabase:
     def get_best_matches(self, df: pl.LazyFrame, kind: Literal["model", "brand"]):
         if kind == "brand":
             df = df.filter(pl.col("parent_id") == 0)
-            limit = self.config.max_brand_matches
+            limit_matches = self.config.max_brand_matches
         elif kind == "model":
             df = df.filter(pl.col("parent_id") != 0)
-            limit = self.config.max_model_matches
+            limit_matches = self.config.max_model_matches
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -220,7 +220,15 @@ class TireModelDatabase:
                 ],
                 descending=[True, True],
             )
-            .limit(limit)
+            .with_columns(
+                pl.col(f"candidate_{kind}_score")
+                .rank(method="min", descending=True)
+                .over(f"{kind}_id")
+                .alias("rank")
+            )
+            .filter(pl.col("rank") <= self.config.max_distinct_matches)
+            .drop("rank")
+            .limit(limit_matches)
         )
 
     def query(self, queries: List[str]):

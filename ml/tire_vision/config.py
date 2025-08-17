@@ -155,9 +155,10 @@ class IndexConfig:
     table_cache_path: str = "models.parquet"
     table_cache_ttl_seconds: int = float("inf")
 
-    max_query_results: int = 5
-    max_brand_matches: int = 50
-    max_model_matches: int = 100
+    max_query_results: int = 10
+    max_brand_matches: int = 20
+    max_model_matches: int = 50
+    max_distinct_matches: int = 3
     brand_model_match_bonus: float = 0.1
 
     similarity_metric: Literal["levenshtein", "jaro_winkler"] = "jaro_winkler"
@@ -178,6 +179,12 @@ class TireAnnotationPipelineConfig:
     index_config: IndexConfig = IndexConfig()
 
     max_image_size: int = 2048
+    tire_size_regex: List[str] = field(
+        default_factory=lambda: [
+            r"\d{3}/\d{2}[Rr]\d{2} \d{2}[A-Za-z]{2}",
+            r"\d{3}/\d{2}[Rr]\d{2}",
+        ]
+    )
     image_composition_strategy: Literal["unwrapped", "both"] = "unwrapped"
 
 

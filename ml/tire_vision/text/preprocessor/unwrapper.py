@@ -5,8 +5,6 @@ from tire_vision.config import SidewallUnwrapperConfig
 
 
 class SidewallUnwrapper:
-    """Takes a tire mask, unwraps and enhances the sidewall."""
-
     def __init__(self, config: SidewallUnwrapperConfig):
         self.config = config
         self.clahe = cv2.createCLAHE(
@@ -15,18 +13,17 @@ class SidewallUnwrapper:
         )
 
     def _postprocess_mask(self, mask: np.ndarray):
-        """Performs morphological operations and keeps the largest connected component."""
-        ksize = self.config.mask_postprocess_ksize
-        kern = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
-        processed_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kern)
-        processed_mask = cv2.morphologyEx(processed_mask, cv2.MORPH_OPEN, kern)
+        kernel_size = self.config.mask_postprocess_ksize
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        processed_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        processed_mask = cv2.morphologyEx(processed_mask, cv2.MORPH_OPEN, kernel)
 
         n, labels, stats, _ = cv2.connectedComponentsWithStats(processed_mask)
         if n <= 1:
             return processed_mask
         areas = stats[1:, cv2.CC_STAT_AREA]
-        best = 1 + int(np.argmax(areas))
-        return (labels == best).astype(np.uint8) * 255
+        largest = 1 + int(np.argmax(areas))
+        return (labels == largest).astype(np.uint8) * 255
 
     def _ellipse_params_from_mask(self, mask_cc):
         cnts, _ = cv2.findContours(mask_cc, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -78,3 +75,6 @@ class SidewallUnwrapper:
 
     def forward(self, image: np.ndarray, mask: np.ndarray):
         return self.get_unwrapped_tire(image, mask)
+
+    def __call__(self, image: np.ndarray, mask: np.ndarray):
+        return self.forward(image, mask)

@@ -49,6 +49,9 @@ class OCRPipeline:
             )
             return self._get_default_response()
 
+    def __call__(self, images: List[np.ndarray]) -> Dict[str, List[str]]:
+        return self.extract_tire_info(images)
+
     async def async_extract_tire_info(
         self,
         images: List[np.ndarray],

@@ -58,7 +58,7 @@ def main():
         dummy_input,
         args.spike.onnx_path,
         verbose=True,
-        opset_version=23,
+        opset_version=21,
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],

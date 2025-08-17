@@ -13,7 +13,7 @@ class IndexPipeline:
         self.logger = logging.getLogger("tire_index_pipeline")
         self.logger.info("TireIndexPipeline initialized")
 
-    def get_best_matches(self, queries: List[str]) -> List[Dict[str, Any]]:
+    def __call__(self, queries: List[str]) -> List[Dict[str, Any]]:
         self.logger.info(f"Getting best matches for queries: {queries}")
         start_time = time.perf_counter()
         result = self.database.query(queries)
