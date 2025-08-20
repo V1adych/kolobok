@@ -22,20 +22,20 @@ class Args:
     annotations_path: str
     dest_dir: str
 
-    classes: List[str] = field(
-        default_factory=lambda: [
-            "normal",
-            "broken",
-            "absent",
-            "renewed",
-            "floating",
-            "false_positive",
-        ]
+    classes: Dict[str, int] = field(
+        default_factory=lambda: {
+            "normal": 0,
+            "broken": 1,
+            "absent": 1,
+            "renewed": 0,
+            "floating": 0,
+            "false_positive": 2,
+        }
     )
 
 
 def get_spike_crop(
-    image: np.ndarray, cx: int, cy: int, crop_size: int = 32
+    image: np.ndarray, cx: int, cy: int, crop_size: int = 64
 ) -> np.ndarray:
     r = crop_size // 2
     x1 = np.clip(cx - r, 0, image.shape[1])
@@ -163,13 +163,13 @@ def create_dataset_from_detections(
 
         for crop, (c1, c2) in zip(crops, centroids):
             c1, c2 = int(c1), int(c2)
-            x1 = np.clip(c1 - 16, 0, image.shape[1])
-            y1 = np.clip(c2 - 16, 0, image.shape[0])
-            x2 = np.clip(c1 + 16, 0, image.shape[1])
-            y2 = np.clip(c2 + 16, 0, image.shape[0])
+            x1 = np.clip(c1 - 32, 0, image.shape[1])
+            y1 = np.clip(c2 - 32, 0, image.shape[0])
+            x2 = np.clip(c1 + 32, 0, image.shape[1])
+            y2 = np.clip(c2 + 32, 0, image.shape[0])
             mask_crop = gt_mask[y1:y2, x1:x2]
 
-            if np.mean(mask_crop) > 0.1:
+            if np.mean(mask_crop) > 0.01:
                 continue
 
             save_path = dest_dir / "images" / f"{counter:06d}.png"
@@ -200,11 +200,9 @@ def main():
     dest_dir = Path(args.dest_dir)
     annotations_path = Path(args.annotations_path)
 
-    classes = args.classes
-    class2idx = {cls: i for i, cls in enumerate(classes)}
-    idx2class = {i: cls for i, cls in enumerate(classes)}
+    class2idx = args.classes
 
-    spike_pipeline = SpikePipeline(config=SpikePipelineConfig(confidence_threshold=0.25))
+    spike_pipeline = SpikePipeline(config=SpikePipelineConfig(confidence_threshold=0.25, crop_size=64))
 
     df1, counter = create_dataset_from_labels(
         all_images_dir, annotations_path, dest_dir, class2idx, counter=0

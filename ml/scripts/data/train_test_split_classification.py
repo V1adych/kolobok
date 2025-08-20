@@ -46,6 +46,9 @@ def main():
         src_image_path = src_images / image_name
         dest_image_path = dest_images_train / image_name
         dest_image_path.parent.mkdir(parents=True, exist_ok=True)
+        if not src_image_path.exists():
+            print(f"Image {src_image_path} does not exist")
+            continue
         shutil.copy(src_image_path, dest_image_path)
 
     for _, row in val_df.iterrows():
@@ -53,6 +56,9 @@ def main():
         src_image_path = src_images / image_name
         dest_image_path = dest_images_val / image_name
         dest_image_path.parent.mkdir(parents=True, exist_ok=True)
+        if not src_image_path.exists():
+            print(f"Image {src_image_path} does not exist")
+            continue
         shutil.copy(src_image_path, dest_image_path)
 
 

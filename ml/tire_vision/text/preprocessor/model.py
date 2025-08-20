@@ -2,7 +2,6 @@ import logging
 import time
 
 import numpy as np
-import torch
 
 from tire_vision.config import SidewallSegmentatorConfig
 from tire_vision.segmentation.onnx import OnnxSegmentator
@@ -21,7 +20,6 @@ class SidewallSegmentator:
 
         self.logger.info("SidewallSegmentator initialized successfully")
 
-    @torch.no_grad()
     def forward(self, image: np.ndarray):
         start_time = time.perf_counter()
 
@@ -33,3 +31,6 @@ class SidewallSegmentator:
         )
 
         return mask
+
+    def __call__(self, image: np.ndarray):
+        return self.forward(image)

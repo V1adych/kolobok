@@ -33,7 +33,7 @@ def main():
         "225/60R17 95H"
     ]
 
-    result = pipeline.index.get_best_matches(strings)
+    result = pipeline.index.__call__(strings)
     print(result)
 
 

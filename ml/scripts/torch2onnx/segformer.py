@@ -73,7 +73,7 @@ def main():
         dummy_input,
         args.model.onnx_path,
         verbose=True,
-        opset_version=17,
+        opset_version=21,
         do_constant_folding=True,
         input_names=["input"],
         output_names=["output"],
