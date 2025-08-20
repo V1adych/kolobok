@@ -130,7 +130,7 @@ class OCRConfig:
     model_name: str = "qwen/qwen2.5-vl-72b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
-    providers_list: List[str] = field(default_factory=lambda: ["parasail"])
+    providers_list: List[str] = field(default_factory=lambda: ["nebius/fp8"])
 
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT

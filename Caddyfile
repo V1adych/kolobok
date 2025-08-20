@@ -1,4 +1,4 @@
-shinko1.duckdns.org {
+shinko3.duckdns.org {
     encode gzip zstd
     reverse_proxy ml:8000
 }
