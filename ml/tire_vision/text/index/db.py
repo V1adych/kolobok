@@ -172,22 +172,21 @@ class TireModelDatabase:
         )
 
     def get_scores(self, queries: List[str]):
-        df = self.table.lazy().with_columns(
-            pl.col("name_normalized")
-            .map_elements(
-                lambda x: self.calculate_score(x, queries),
-                return_dtype=pl.List(
-                    pl.Struct(
-                        fields=[
-                            pl.Field("score", pl.Float64),
-                            pl.Field("candidate", pl.String),
-                        ]
-                    )
-                ),
-            )
-            .alias("query_scores")
+        df_queries = pl.DataFrame(
+            {
+                "query": queries,
+                "query_normalized": list(map(lambda x: x.lower().strip(), queries)),
+            }
+        ).lazy()
+        df = self.table.lazy().join(df_queries, how="cross").with_columns(
+            pl.struct([
+                pl.col("name_normalized"),
+                pl.col("query_normalized"),
+            ]).map_elements(
+                lambda x: self.similarity_metric(x["name_normalized"], x["query_normalized"]),
+                return_dtype=pl.Float64,
+            ).alias("score"),
         )
-
         return df
 
     def get_best_matches(self, df: pl.LazyFrame, kind: Literal["model", "brand"]):
@@ -201,17 +200,12 @@ class TireModelDatabase:
             raise ValueError(f"Invalid kind: {kind}")
 
         return (
-            df.explode("query_scores")
-            .select(
+            df.select(
                 pl.col("id").alias(f"{kind}_id"),
                 pl.col("name").alias(f"{kind}_name"),
                 pl.col("parent_id"),
-                pl.col("query_scores")
-                .struct.field("candidate")
-                .alias(f"candidate_{kind}_name"),
-                pl.col("query_scores")
-                .struct.field("score")
-                .alias(f"candidate_{kind}_score"),
+                pl.col("query_normalized").alias(f"candidate_{kind}_name"),
+                pl.col("score").alias(f"candidate_{kind}_score"),
             )
             .sort(
                 [
