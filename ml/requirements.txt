@@ -15,5 +15,3 @@ rapidfuzz
 requests[socks]
 httpx[socks]
 onnx
-onnxruntime
-onnxruntime-openvino

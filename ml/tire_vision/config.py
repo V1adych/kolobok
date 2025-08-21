@@ -74,7 +74,7 @@ cores = multiprocessing.cpu_count()
 ort_opts.intra_op_num_threads = max(1, cores // num_gunicorn_workers)
 ort_opts.inter_op_num_threads = 1
 
-ort_providers = ["OpenVINOExecutionProvider"]
+ort_providers = ["CPUExecutionProvider"]
 
 
 @dataclass(frozen=True)
@@ -156,8 +156,8 @@ class IndexConfig:
     table_cache_ttl_seconds: int = float("inf")
 
     max_query_results: int = 10
-    max_brand_matches: int = 20
-    max_model_matches: int = 50
+    max_brand_matches: int = 25
+    max_model_matches: int = 40
     max_distinct_matches: int = 3
     brand_model_match_bonus: float = 0.1
 
