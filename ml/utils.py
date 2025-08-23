@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, List
 
 import numpy as np
 import cv2
@@ -11,24 +11,28 @@ from tire_vision.config import (
     CLASS_COLORS,
 )
 
+from logs_manager import log_wrapper
+
 
 cfg = TireVisionConfig()
 # thread_pipeline = TireThreadPipeline(cfg.thread_pipeline_config)
 annotation_pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
 
 
-def get_thread_stats(image: np.ndarray) -> dict[str, Any]:
+@log_wrapper
+def get_thread_stats(image: np.ndarray) -> Dict[str, Any]:
     # result = thread_pipeline(image)
     # return result
     return {}
 
 
-def extract_tire_info(image: np.ndarray) -> dict[str, Any]:
+@log_wrapper
+def extract_tire_info(image: np.ndarray) -> Dict[str, Any]:
     """Extract tire information using OCR."""
     return annotation_pipeline(image)
 
 
-def add_annotations(image: np.ndarray, annotations: list[dict[str, Any]]) -> np.ndarray:
+def add_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.ndarray:
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     for annotation in annotations:
         x, y, w, h = annotation["box"]
