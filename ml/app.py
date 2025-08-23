@@ -75,9 +75,9 @@ def perf_logger(func):
         end_time = datetime.now()
         logger.info(f"{func.__name__}: completed in {end_time - start_time}")
         result["perf_stats"] = {
-            "received_request": start_time.isoformat(),
-            "completed_request": end_time.isoformat(),
-            "duration": (end_time - start_time).total_seconds(),
+            "request_received_timestamp": start_time.isoformat(timespec="milliseconds"),
+            "request_completed_timestamp": end_time.isoformat(timespec="milliseconds"),
+            "total_time_seconds": (end_time - start_time).total_seconds(),
         }
         return result
     return wrapper
@@ -91,9 +91,9 @@ def async_perf_logger(func):
         end_time = datetime.now()
         logger.info(f"{func.__name__}: completed in {end_time - start_time}")
         result["perf_stats"] = {
-            "received_request": start_time.isoformat(),
-            "completed_request": end_time.isoformat(),
-            "duration": (end_time - start_time).total_seconds(),
+            "request_received_timestamp": start_time.isoformat(timespec="milliseconds"),
+            "request_completed_timestamp": end_time.isoformat(timespec="milliseconds"),
+            "total_time_seconds": (end_time - start_time).total_seconds(),
         }
         return result
     return wrapper
