@@ -99,32 +99,32 @@ def async_perf_logger(func):
     return wrapper
 
 
-@app.post("/api/v1/analyze_thread")
-@perf_logger
-def analyze_thread(
-    req: ImageRequest,
-    token: str = Depends(verify_token),
-):
-    validate_image(req.image)
+# @app.post("/api/v1/analyze_thread")
+# @perf_logger
+# def analyze_thread(
+#     req: ImageRequest,
+#     token: str = Depends(verify_token),
+# ):
+#     validate_image(req.image)
 
-    image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
-    result = get_thread_stats(image)
-    if result["success"] == 0:
-        return result
+#     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
+#     result = get_thread_stats(image)
+#     if result["success"] == 0:
+#         return result
 
-    image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
+#     image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
 
-    pil_image = Image.fromarray(image_with_annotations)
-    buffered = io.BytesIO()
-    pil_image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+#     pil_image = Image.fromarray(image_with_annotations)
+#     buffered = io.BytesIO()
+#     pil_image.save(buffered, format="PNG")
+#     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-    return {
-        "success": 1,
-        "thread_depth": result["depth"],
-        "spikes": result["spikes"],
-        "image": img_str,
-    }
+#     return {
+#         "success": 1,
+#         "thread_depth": result["depth"],
+#         "spikes": result["spikes"],
+#         "image": img_str,
+#     }
 
 
 @app.post("/api/v1/extract_information")
@@ -142,34 +142,34 @@ def extract_information(
     return result
 
 
-@app.post("/api/v1/bin/analyze_thread")
-@async_perf_logger
-async def analyze_thread_bin(
-    image: UploadFile = File(...),
-    token: str = Depends(verify_token),
-):
-    contents = await image.read()
-    validate_image_bytes(contents)
+# @app.post("/api/v1/bin/analyze_thread")
+# @async_perf_logger
+# async def analyze_thread_bin(
+#     image: UploadFile = File(...),
+#     token: str = Depends(verify_token),
+# ):
+#     contents = await image.read()
+#     validate_image_bytes(contents)
 
-    image_np = np.array(Image.open(io.BytesIO(contents)))
-    result = get_thread_stats(image_np)
-    if result["success"] == 0:
-        return result
+#     image_np = np.array(Image.open(io.BytesIO(contents)))
+#     result = get_thread_stats(image_np)
+#     if result["success"] == 0:
+#         return result
 
-    image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
-    logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
+#     image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
+#     logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
 
-    pil_image = Image.fromarray(image_with_annotations)
-    buffered = io.BytesIO()
-    pil_image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+#     pil_image = Image.fromarray(image_with_annotations)
+#     buffered = io.BytesIO()
+#     pil_image.save(buffered, format="PNG")
+#     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-    return {
-        "success": 1,
-        "thread_depth": result["depth"],
-        "spikes": result["spikes"],
-        "image": img_str,
-    }
+#     return {
+#         "success": 1,
+#         "thread_depth": result["depth"],
+#         "spikes": result["spikes"],
+#         "image": img_str,
+#     }
 
 
 @app.post("/api/v1/bin/extract_information")

@@ -5,8 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 
 RUN pip install -r requirements.txt --no-cache-dir
-RUN pip install "numpy<2"
-RUN pip install onnxruntime-openvino==1.17.1 --no-cache-dir
 
 COPY . .
 

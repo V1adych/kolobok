@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 gunicorn
+numpy<2
 opencv-python-headless
 torch
 torchvision
@@ -14,4 +15,6 @@ polars
 rapidfuzz
 requests[socks]
 httpx[socks]
+python-multipart
 onnx
+onnxruntime-openvino==1.17.1
