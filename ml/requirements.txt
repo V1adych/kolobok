@@ -15,5 +15,6 @@ rapidfuzz
 requests[socks]
 httpx[socks]
 python-multipart
+boto3
 onnx
 onnxruntime
