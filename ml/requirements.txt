@@ -14,5 +14,6 @@ polars
 rapidfuzz
 requests[socks]
 httpx[socks]
+python-multipart
 onnx
 onnxruntime
