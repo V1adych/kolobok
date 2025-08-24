@@ -34,11 +34,12 @@ class OCRPipeline:
     def extract_tire_info(
         self,
         images: List[np.ndarray],
+        prompt: str,
     ) -> Dict[str, List[str]]:
         file_inputs = [self._prepare_image(img) for img in images]
 
         try:
-            user_prompt = self._build_user_prompt(len(images))
+            user_prompt = self._build_user_prompt(prompt)
             result = self._get_llm_response(file_inputs, user_prompt)
             tire_info = self._parse_llm_response(result)
             return tire_info
@@ -49,41 +50,12 @@ class OCRPipeline:
             )
             return self._get_default_response()
 
-    def __call__(self, images: List[np.ndarray]) -> Dict[str, List[str]]:
-        return self.extract_tire_info(images)
+    def __call__(self, images: List[np.ndarray], prompt: str) -> Dict[str, List[str]]:
+        return self.extract_tire_info(images, prompt)
 
-    async def async_extract_tire_info(
-        self,
-        images: List[np.ndarray],
-    ) -> Dict[str, List[str]]:
-        file_inputs = [self._prepare_image(img) for img in images]
-
-        try:
-            user_prompt = self._build_user_prompt(len(images))
-            result = await self._async_get_llm_response(file_inputs, user_prompt)
-            tire_info = self._parse_llm_response(result)
-            return tire_info
-        except Exception:
-            self.logger.error(format_exc())
-            self.logger.error(
-                "Error during OCR processing. Falling back to default values"
-            )
-            return self._get_default_response()
-
-    def _build_user_prompt(self, num_images: int) -> str:
+    def _build_user_prompt(self, prompt: str) -> str:
         base_prompt = self.config.prompt
-
-        if num_images == 1:
-            suffix = "You will be provided with an image of a tire."
-        elif num_images == 2:
-            suffix = (
-                "You will be provided with an original image of a tire and an unwrapped image of the same tire. "
-                "Use both images to increase your accuracy."
-            )
-        else:
-            suffix = f"You will be provided with {num_images} images of the tire. Use all images to increase your accuracy."
-
-        return f"{base_prompt} {suffix}"
+        return f"{base_prompt} {prompt}"
 
     def _prepare_image(self, image: np.ndarray) -> str:
         pil_image = Image.fromarray(image)

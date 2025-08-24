@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, Callable, List, Tuple
 import time
 from traceback import format_exc
 import json
@@ -29,7 +29,6 @@ class TireAnnotationPipeline:
         self.index = IndexPipeline(config.index_config)
 
         self.max_image_size = config.max_image_size
-        self.image_composition_strategy = config.image_composition_strategy
 
         self._composition_strategies: Dict[
             str, Callable[[Optional[np.ndarray], np.ndarray], List[np.ndarray]]
@@ -64,14 +63,14 @@ class TireAnnotationPipeline:
             f"Original image shape: {image.shape}, unwrapped image shape: {getattr(unwrapped_image, 'shape', None)}"
         )
 
-        images_for_ocr = self.image_composition(
+        images_for_ocr, prompt = self.image_composition(
             unwrapped_image if unwrap_success else None, image
         )
 
         images_for_ocr = list(map(self._dynamic_resize, images_for_ocr))
 
         self.logger.info("Running OCRPipeline")
-        ocr_result = self.ocr(images_for_ocr)
+        ocr_result = self.ocr(images_for_ocr, prompt)
         ocr_result = self._postprocess_ocr_result(ocr_result)
         self.logger.info("OCRPipeline result:")
         self.logger.info(f"strings: {ocr_result['strings']}")
@@ -128,19 +127,14 @@ class TireAnnotationPipeline:
 
     def image_composition(
         self, unwrapped_image: Optional[np.ndarray], original_image: np.ndarray
-    ) -> List[np.ndarray]:
+    ) -> Tuple[List[np.ndarray], str]:
         if unwrapped_image is None:
             self.logger.warning(
                 "Unwrap failed, using only original image for OCR. This could lead to less accurate results."
             )
-            return [original_image]
+            return [original_image], self.config.original_prompt
 
-        compose = self._composition_strategies.get(self.image_composition_strategy)
-        if compose is None:
-            self.logger.warning(
-                f"Unknown image_composition_strategy '{self.image_composition_strategy}', falling back to 'unwrapped'"
-            )
-            compose = self._compose_unwrapped
+        compose = self._composition_strategies[self.config.image_composition_strategy]
         self.logger.info(
             f"Unwrap successful. Using image composition strategy: {compose.__name__}"
         )
@@ -148,10 +142,10 @@ class TireAnnotationPipeline:
 
     def _compose_unwrapped(
         self, unwrapped_image: Optional[np.ndarray], original_image: np.ndarray
-    ) -> List[np.ndarray]:
-        return [unwrapped_image]
+    ) -> Tuple[List[np.ndarray], str]:
+        return [unwrapped_image], self.config.unwrap_prompt
 
     def _compose_both(
         self, unwrapped_image: Optional[np.ndarray], original_image: np.ndarray
-    ) -> List[np.ndarray]:
-        return [unwrapped_image, original_image]
+    ) -> Tuple[List[np.ndarray], str]:
+        return [unwrapped_image, original_image], self.config.both_prompt

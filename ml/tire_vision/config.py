@@ -65,6 +65,13 @@ Example of a valid response:
 ```
 """
 
+ORIGINAL_PROMPT = "You will receive a single image of a tire"
+UNWRAP_PROMPT = "You will receive an unwrapped image of a tire (unwrap performed for better readability of the text)"
+BOTH_PROMPT = (
+    "You will receive both an original image of a tire and its unwrapped version (unwrap performed for better readability of the text). "
+    "Use both images to extract the required information."
+)
+
 num_gunicorn_workers = int(os.environ.get("GUNICORN_WORKERS", "1"))
 ort_opts = ort.SessionOptions()
 ort_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -130,7 +137,7 @@ class OCRConfig:
     model_name: str = "qwen/qwen2.5-vl-72b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
-    providers_list: List[str] = field(default_factory=lambda: ["nebius/fp8", "parasail"])
+    providers_list: List[str] = field(default_factory=lambda: ["nebius/fp8"])
 
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
@@ -185,7 +192,11 @@ class TireAnnotationPipelineConfig:
             r"\d{3}/\d{2}[Rr]\d{2}",
         ]
     )
-    image_composition_strategy: Literal["unwrapped", "both"] = "unwrapped"
+    image_composition_strategy: Literal["unwrapped", "both"] = "both"
+
+    original_prompt: str = ORIGINAL_PROMPT
+    unwrap_prompt: str = UNWRAP_PROMPT
+    both_prompt: str = BOTH_PROMPT
 
 
 @dataclass(frozen=True)
