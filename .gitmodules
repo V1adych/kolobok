@@ -1,0 +1,3 @@
+[submodule "ml/submodules/rf-detr"]
+	path = ml/submodules/rf-detr
+	url = git@github.com:V1adych/rf-detr.git
