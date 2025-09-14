@@ -145,8 +145,8 @@ class Args:
     num_classes: int = 3
     ckpt_dir: str = "det_checkpoints"
     size: int = 560
-    num_epochs: int = 50
-    batch_size: int = 4
+    num_epochs: int = 100
+    batch_size: int = 8
     num_workers: int = 4
     seed: int = 42
     eps: float = 1e-4
@@ -154,12 +154,12 @@ class Args:
     class_cost: float = 1.0
     bbox_cost: float = 5.0
     giou_cost: float = 2.0
-    eos_coef: float = 0.1
+    eos_coef: float = 1.0
     group_detr: int = 3
-    do_augmentations: bool = True
+    do_augmentations: bool = False
     hflip_prob: float = 0.5
-    normalize: bool = True
-    
+    normalize: bool = False
+    prefetch_factor: int = 2
 
 class DETRLightning(pl.LightningModule):
     def __init__(self, args: "Args"):
@@ -231,6 +231,7 @@ def main():
         num_workers=args.num_workers,
         pin_memory=True,
         collate_fn=collate_fn,
+        prefetch_factor=args.prefetch_factor,
     )
     val_loader = DataLoader(
         val_ds,
@@ -239,6 +240,7 @@ def main():
         num_workers=args.num_workers,
         pin_memory=True,
         collate_fn=collate_fn,
+        prefetch_factor=args.prefetch_factor,
     )
 
     lit_model = DETRLightning(args)
@@ -257,7 +259,6 @@ def main():
         callbacks=[checkpoint_callback],
         log_every_n_steps=10,
         enable_progress_bar=True,
-        accelerator="cpu",
     )
 
     print("Starting training...")

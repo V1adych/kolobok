@@ -34,7 +34,7 @@ def generalized_box_iou(boxes1, boxes2):
     c_area = (c_x1 - c_x0).clamp(min=0) * (c_y1 - c_y0).clamp(min=0) + 1e-7
 
     giou = iou - (c_area - union) / c_area
-    return giou, iou
+    return giou
 
 
 class HungarianMatcher(nn.Module):
