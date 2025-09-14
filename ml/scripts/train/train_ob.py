@@ -246,8 +246,8 @@ def main():
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=str(Path(args.ckpt_dir) / "checkpoints"),
         filename="model-{epoch:03d}-{val_iou:.5f}",
-        monitor="val_iou",
-        mode="max",
+        monitor="val_loss",
+        mode="min",
         save_top_k=5,
         save_last=True,
     )
