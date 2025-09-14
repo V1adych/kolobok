@@ -5,6 +5,7 @@ import base64
 import io
 import httpx
 import time
+import ssl
 
 from rapidfuzz import fuzz
 import cv2
@@ -17,7 +18,7 @@ from tire_vision.config import TireVisionConfig
 import logging
 
 
-logging.basicConfig(level=logging.CRITICAL, force=True)
+logging.basicConfig(level=logging.INFO, force=True)
 
 
 def read_json(path: Path):
@@ -66,6 +67,12 @@ def get_image_bytes(image: cv2.typing.MatLike) -> str:
     return base64.b64encode(img_bytes.read()).decode("utf-8")
 
 
+def get_image_bytes_v2(image: cv2.typing.MatLike) -> bytes:
+    """Encodes a cv2 image to jpg bytes."""
+    _, buffer = cv2.imencode(".jpg", image)
+    return buffer.tobytes()
+
+
 async def get_prediction(
     client: httpx.AsyncClient,
     image: cv2.typing.MatLike,
@@ -79,7 +86,36 @@ async def get_prediction(
         headers = {"Authorization": f"Bearer {token}"}
         data = {"image": image_bytes, "model": "ocr"}
         try:
+            with open("data.json", "w") as f:
+                json.dump(data, f)
             response = await client.post(endpoint, json=data, headers=headers, timeout=30)
+            response.raise_for_status()
+            end_time = time.time()
+            return response.json(), end_time - start_time
+        except httpx.HTTPStatusError as e:
+            logging.error(f"HTTP error occurred: {e}")
+            return None, 0
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+            return None, 0
+
+async def get_prediction_v2(
+    client: httpx.AsyncClient,
+    image: cv2.typing.MatLike,
+    endpoint: str,
+    token: str,
+    semaphore: asyncio.Semaphore,
+):
+    """Sends an image to a v2 endpoint using multipart/form-data."""
+    async with semaphore:
+        start_time = time.time()
+        image_bytes = get_image_bytes_v2(image)
+        headers = {"Authorization": f"Bearer {token}"}
+        files = {"image": ("image.jpg", image_bytes, "image/jpeg")}
+        try:
+            response = await client.post(
+                endpoint, files=files, headers=headers, timeout=30
+            )
             response.raise_for_status()
             end_time = time.time()
             return response.json(), end_time - start_time
@@ -95,13 +131,14 @@ async def main():
     input_dir = Path("/Users/n-zagainov/kolobok/ml/data/annotations")
     gt_paths = Path("/Users/n-zagainov/kolobok/ml/data/annotations_processed")
 
-    base_url = "http://localhost:8000"
+    # base_url = "http://127.0.0.1:8000"
     # base_url = "https://tire-vision.duckdns.org"
     # base_url = "http://51.250.41.44:8000"
-    # base_url = "http://193.168.196.143:8000"
-    token = "kolobok_token"
-    # token = "a2400743-8a61-4bcc-82d7-ca3fc160d9f4"
-    endpoint = f"{base_url}/api/v1/extract_information"
+    # base_url = "https://193.168.196.143"
+    base_url = "https://shinko3.duckdns.org"
+    # token = "kolobok_token"
+    token = "a2400743-8a61-4bcc-82d7-ca3fc160d9f4"
+    endpoint = f"{base_url}/api/v1/bin/extract_information"
 
     cfg = TireVisionConfig()
 
@@ -119,7 +156,8 @@ async def main():
         img_path = input_dir / f"{name}.jpg"
         gt_path = gt_paths / f"{name}.json"
 
-        image = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        # image = cv2.cvtColor(cv2.imread(str(img_path)), cv2.COLOR_BGR2RGB)
+        image = cv2.imread(str(img_path))
         gt_data_raw = read_json(gt_path)
 
         gt_data_raw = {
@@ -152,7 +190,7 @@ async def main():
         gts_to_process.append(gt_data)
 
     all_results = []
-    semaphore = asyncio.Semaphore(5)
+    semaphore = asyncio.Semaphore(1)
 
     async def get_and_process(
         client: httpx.AsyncClient,
@@ -162,7 +200,7 @@ async def main():
         token: str,
         semaphore: asyncio.Semaphore,
     ):
-        output, exec_time = await get_prediction(client, image, endpoint, token, semaphore)
+        output, exec_time = await get_prediction_v2(client, image, endpoint, token, semaphore)
 
         if output is None:
             return None
@@ -178,10 +216,14 @@ async def main():
         return result_with_name
 
 
-    async with httpx.AsyncClient() as client:
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+
+    async with httpx.AsyncClient(verify=context, http2=False) as client:
         tasks = [
             get_and_process(client, image, gt, endpoint, token, semaphore)
-            for image, gt in zip(images_to_process[:], gts_to_process)
+            for image, gt in zip(images_to_process[:5], gts_to_process)
         ]
 
         for f in tqdm(
