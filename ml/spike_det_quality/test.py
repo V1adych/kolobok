@@ -106,6 +106,7 @@ def calculate_metrics(
     for pred_idx in range(iou_mat.shape[0]):
         gt_idx = np.argmax(iou_mat[pred_idx])
         best_iou = iou_mat[pred_idx, gt_idx]
+        # print(pred_idx, gt_idx, best_iou)
         if best_iou >= iou_threshold:
             detected[gt_idx] = True
             iou_mat[:, gt_idx] = -np.inf
@@ -119,6 +120,7 @@ def calculate_metrics(
     metrics["det_fn"] = int(np.sum(~detected))
 
     return metrics
+
 
 def base64_to_np_array(base64_str: str) -> np.ndarray:
     return np.array(Image.open(io.BytesIO(base64.b64decode(base64_str))))
@@ -139,15 +141,18 @@ def main():
     for image in tqdm(images):
         image_path = test_root / image["file_name"]
         image_id = image["id"]
+
         annotations_for_image = [a for a in annotations if a["image_id"] == image_id]
 
         predictions = get_predictions(args.url, image_path, args.token)
         perf_stats, spikes = predictions["perf_stats"], predictions["spikes"]
         image_np = base64_to_np_array(predictions["image"])
 
-        boxes_pred = cxcywh_to_xyxy(
-            np.array([spike["box"] for spike in spikes], dtype=np.float32)
-        )
+        boxes_list = [spike["box"] for spike in spikes]
+        boxes_pred = np.zeros((0, 4), dtype=np.float32)
+        if len(boxes_list) > 0:
+            boxes_pred = cxcywh_to_xyxy(np.array(boxes_list, dtype=np.float32))
+
         labels_pred = np.array([spike["class"] for spike in spikes], dtype=np.int32)
         boxes_annot = cxcywh_to_xyxy(
             np.array(
@@ -160,19 +165,27 @@ def main():
             dtype=np.int32,
         )
 
-        metrics = calculate_metrics(boxes_pred, labels_pred, boxes_annot, labels_annot, args.iou_threshold)
+        # print(boxes_pred)
+        # print(boxes_annot)
+
+        metrics = calculate_metrics(
+            boxes_pred, labels_pred, boxes_annot, labels_annot, args.iou_threshold
+        )
         if args.img_save_dir is not None:
             img_save_path = Path(args.img_save_dir) / f"{image_id}.png"
             img_save_path.parent.mkdir(parents=True, exist_ok=True)
             Image.fromarray(image_np).save(img_save_path)
             metrics["img_save_path"] = str(img_save_path)
+        print(metrics)
+        # return1
         all_metrics.append(metrics)
-    
+
     df = pl.DataFrame(all_metrics)
     print(df)
     df.write_csv(Path(args.img_save_dir) / "metrics.csv")
-    print(df.select("det_tp", "det_fp", "det_fn", "cls_correct", "cls_incorrect").mean())
-
+    print(
+        df.select("det_tp", "det_fp", "det_fn", "cls_correct", "cls_incorrect").mean()
+    )
 
 
 if __name__ == "__main__":

@@ -112,7 +112,7 @@ def analyze_thread(
     if result["success"] == 0:
         return result
 
-    image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
+    image_with_annotations = add_annotations(result["vis_image"], result["spikes"])
 
     pil_image = Image.fromarray(image_with_annotations)
     buffered = io.BytesIO()
@@ -156,7 +156,7 @@ async def analyze_thread_bin(
     if result["success"] == 0:
         return result
 
-    image_with_annotations = add_annotations(result["cropped_image"], result["spikes"])
+    image_with_annotations = add_annotations(result["vis_image"], result["spikes"])
     logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
 
     pil_image = Image.fromarray(image_with_annotations)

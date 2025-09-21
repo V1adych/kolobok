@@ -35,12 +35,8 @@ def add_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     for annotation in annotations:
         x, y, w, h = annotation["box"]
-        class_name = CLASS_MAPPING[annotation["class"]]
-        color = CLASS_COLORS[class_name]
+        color = CLASS_COLORS[annotation["class"]]
         cv2.rectangle(image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), color, 2)
-        cv2.putText(
-            image_bgr, class_name, (x - w // 2, y + h // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 3
-        )
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 

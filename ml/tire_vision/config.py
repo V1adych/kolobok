@@ -10,13 +10,13 @@ DEVICE = "cpu"
 
 
 CLASS_MAPPING = {
-    0: "good",
-    1: "bad",
+    0: "healthy",
+    1: "broken",
 }
 
 CLASS_COLORS = {
-    "good": (0, 255, 0),
-    "bad": (255, 0, 0),
+    0: (0, 255, 0),
+    1: (0, 0, 255),
 }
 
 SYSTEM_OCR_PROMPT = """You are an expert OCR model specializing in reading text from images of tires. 
@@ -96,15 +96,10 @@ class ThreadSegmentatorConfig:
 
 @dataclass(frozen=True)
 class SpikePipelineConfig:
-    spike_segmentator_onnx: str = "onnx/spike_segmentator.onnx"
-    spike_classifier_onnx: str = "onnx/spike_classifier.onnx"
-
-    confidence_threshold: float = 0.5
-    resize_shape: Tuple[int, int] = (512, 512)
-    erosion_iterations: int = 0
-    dilation_iterations: int = 0
-    crop_size: int = 64
-
+    spike_detector_onnx: str = "onnx/spike_detector.onnx"
+    resize_shape: Tuple[int, int] = (560, 560)
+    nms_iou_threshold: float = 0.15
+    confidence_threshold: float = 0.3
 
 @dataclass(frozen=True)
 class DepthRegressorConfig:
