@@ -1,8 +1,6 @@
 import onnxruntime
 import numpy as np
-
-import torch
-from torchvision.transforms import functional as VF, InterpolationMode
+import cv2
 
 from tire_vision.config import DepthRegressorConfig, ort_providers, ort_opts
 
@@ -17,16 +15,12 @@ class DepthRegressor:
         )
 
     def forward(self, image: np.ndarray):
-        h, w, _ = image.shape
-        image = image.transpose(2, 0, 1)[None].astype(np.float32) / 255
-        image_torch = torch.from_numpy(image)
-        image_torch = VF.resize(
-            image_torch,
-            self.config.resize_shape,
-            interpolation=InterpolationMode.BILINEAR,
-        )
+        resized_image = cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
+        
+        # Normalize and transpose for model input
+        image_input = resized_image.transpose(2, 0, 1)[None].astype(np.float32) / 255
 
-        result = self.session.run(None, {"input": image_torch.numpy()})[0]
+        result = self.session.run(None, {"input": image_input})[0]
 
         result_scaled = 10 / (1 + np.exp(-np.squeeze(result)))
 

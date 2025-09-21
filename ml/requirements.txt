@@ -1,10 +1,8 @@
+pillow
 fastapi
 uvicorn
 gunicorn
 opencv-python-headless
-torch
-torchvision
-transformers
 sqlalchemy[asyncio]
 PyMySQL
 aiomysql
