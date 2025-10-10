@@ -5,11 +5,7 @@ import cv2
 
 from tire_vision.thread.pipeline import TireThreadPipeline
 from tire_vision.text.pipeline import TireAnnotationPipeline
-from tire_vision.config import (
-    TireVisionConfig,
-    CLASS_MAPPING,
-    CLASS_COLORS,
-)
+from tire_vision.config import TireVisionConfig, CLASS_COLORS, CLASS_MAPPING
 
 from logs_manager import log_wrapper
 
@@ -27,8 +23,11 @@ def get_thread_stats(image: np.ndarray) -> Dict[str, Any]:
 
 @log_wrapper
 def extract_tire_info(image: np.ndarray) -> Dict[str, Any]:
-    """Extract tire information using OCR."""
-    return annotation_pipeline(image)
+    result = annotation_pipeline(image)
+    for i in range(len(result["spikes"])):
+        result["spikes"][i]["label"] = CLASS_MAPPING[result["spikes"][i]["class"]]
+
+    return result
 
 
 def add_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.ndarray:

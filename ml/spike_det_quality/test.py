@@ -6,7 +6,6 @@ from typing import List, Dict, Optional
 import requests
 import logging
 from tqdm import tqdm
-import shutil
 from PIL import Image
 import io
 
@@ -145,7 +144,7 @@ def main():
         annotations_for_image = [a for a in annotations if a["image_id"] == image_id]
 
         predictions = get_predictions(args.url, image_path, args.token)
-        perf_stats, spikes = predictions["perf_stats"], predictions["spikes"]
+        spikes = predictions["spikes"]
         image_np = base64_to_np_array(predictions["image"])
 
         boxes_list = [spike["box"] for spike in spikes]

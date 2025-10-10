@@ -104,7 +104,7 @@ def main():
     model.model.device = "cpu"
     model.model.reinitialize_detection_head(num_classes=args.num_classes)
     model.model.model.load_state_dict(ckpt["model"])
-    model.export()
+    model.export(opset_version=21)
     return
 
     # model = RFDETR(

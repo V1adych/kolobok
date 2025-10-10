@@ -30,14 +30,13 @@ def xyxy2cxcywh(boxes: np.ndarray) -> np.ndarray:
 
 def nms(
     boxes: np.ndarray,
-    logits: np.ndarray,
+    scores: np.ndarray,
     iou_threshold: float,
 ) -> np.ndarray:
     if boxes.size == 0:
         return np.zeros((0,), dtype=np.int32)
 
     boxes = boxes.astype(np.float32)
-    scores = (1.0 / (1.0 + np.exp(-logits))).max(axis=1)
 
     x1 = boxes[:, 0]
     y1 = boxes[:, 1]
@@ -74,7 +73,7 @@ def nms(
         inds = np.where(iou <= iou_threshold)[0]
         order = rest[inds]
 
-    return np.array(keep, dtype=np.int32), scores
+    return np.array(keep, dtype=np.int32)
 
 
 class SpikePipeline:
@@ -90,38 +89,53 @@ class SpikePipeline:
 
         self.logger.info("SpikePipeline initialized successfully!")
 
-    def _nms_filter(
-        self, boxes: np.ndarray, logits: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        keep_ids, scores = nms(boxes, logits, self.config.nms_iou_threshold)
+    def _global_topk(self, boxes: np.ndarray, logits: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        _, num_classes = logits.shape
+        logits_flat = logits.reshape(-1)
+        topk_indices = np.argpartition(logits_flat, -self.config.max_detections)[-self.config.max_detections :]
+        logits_selected = logits_flat[topk_indices]
+        ids = np.argsort(logits_selected)[::-1]
+        logits_selected = logits_selected[ids]
+        topk_indices = topk_indices[ids]
 
-        return boxes[keep_ids], logits[keep_ids], scores[keep_ids]
+        box_indices = topk_indices // num_classes
+        labels_selected = topk_indices % num_classes
+        boxes_selected = boxes[box_indices]
+
+        return boxes_selected, logits_selected, labels_selected
+
+    def _nms_filter(
+        self, boxes: np.ndarray, logits: np.ndarray, labels: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        keep_ids = nms(boxes, logits, self.config.nms_iou_threshold)
+
+        return boxes[keep_ids], logits[keep_ids], labels[keep_ids]
 
     def _confidence_filter(
-        self, boxes: np.ndarray, logits: np.ndarray, scores: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        self, boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         keep = scores > self.config.confidence_threshold
 
-        return boxes[keep], logits[keep], scores[keep]
+        return boxes[keep], scores[keep], labels[keep]
 
     def __call__(self, image: np.ndarray) -> List[Dict[str, Any]]:
         start_time = time.perf_counter()
 
         h, w, _ = image.shape
 
-        image = cv2.resize(
-            image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR
-        )
+        image = cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
         image = image.transpose(2, 0, 1)[None].astype(np.float32) / 255
 
         boxes_cxcywh, logits = self.det_session.run(None, {"input": image})
         boxes_cxcywh = boxes_cxcywh.squeeze(0)
         logits = logits.squeeze(0)
+
+        boxes_cxcywh, logits, labels = self._global_topk(boxes_cxcywh, logits)
         boxes_xyxy = cxcywh2xyxy(boxes_cxcywh)
 
-        boxes_xyxy, logits, scores = self._nms_filter(boxes_xyxy, logits)
-        boxes_xyxy, logits, scores = self._confidence_filter(boxes_xyxy, logits, scores)
-        labels = np.argmax(logits, axis=1)
+        scores = 1.0 / (1.0 + np.exp(-logits))
+        boxes_xyxy, scores, labels = self._confidence_filter(boxes_xyxy, scores, labels)
+        boxes_xyxy, scores, labels = self._nms_filter(boxes_xyxy, scores, labels)
 
         boxes_cxcywh = xyxy2cxcywh(boxes_xyxy)
         boxes_cxcywh = boxes_cxcywh * np.array([w, h, w, h])
