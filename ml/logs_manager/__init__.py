@@ -13,8 +13,8 @@ loop = asyncio.get_event_loop()
 
 def log_wrapper(func: Callable[[np.ndarray], Dict[str, Any]]):
     @wraps(func)
-    def wrapper(image: np.ndarray):
-        result = func(image)
+    def wrapper(image: np.ndarray, *args, **kwargs):
+        result = func(image, *args, **kwargs)
         loop.run_in_executor(None, mgr.upload_log, image, result, func.__name__)
         return result
 

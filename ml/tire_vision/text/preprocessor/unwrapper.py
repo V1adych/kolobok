@@ -66,7 +66,7 @@ class SidewallUnwrapper:
 
         polar_image = cv2.warpPolar(
             image,
-            self.config.options.polar_dsize,
+            self.config.options.polar_unwrap_size,
             (cx, cy),
             r_minor,
             flags=cv2.INTER_CUBIC,

@@ -10,6 +10,7 @@ class ThreadSegmentatorOptions(BaseModel):
 
 
 class StudPipelineOptions(BaseModel):
+    max_detections: int = 300
     nms_iou_threshold: float = 0.15
     confidence_threshold: float = 0.25
 
@@ -19,7 +20,7 @@ class SidewallSegmentatorOptions(BaseModel):
 
 
 class SidewallUnwrapperOptions(BaseModel):
-    polar_unwrap_dsize: Tuple[int, int] = (1000, 2500)
+    polar_unwrap_size: Tuple[int, int] = (1000, 2500)
 
 
 class OCROptions(BaseModel):

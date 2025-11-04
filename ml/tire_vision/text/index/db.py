@@ -194,9 +194,9 @@ class TireModelDatabase:
                     ]
                 )
                 .map_elements(
-                    lambda x: self.similarity_metric(
-                        x["name_normalized"], x["query_normalized"]
-                    ),
+                    lambda x: self._similarity_metrics[
+                        self.config.options.similarity_metric
+                    ](x["name_normalized"], x["query_normalized"]),
                     return_dtype=pl.Float64,
                 )
                 .alias("score"),

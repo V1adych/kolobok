@@ -1,7 +1,13 @@
+import os
 from typing import Any, Dict, List, Optional
+from PIL import Image, UnidentifiedImageError
+import base64
+import io
 
 import numpy as np
 import cv2
+from fastapi import Form, Security, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from tire_vision.thread.pipeline import TireThreadPipeline
 from tire_vision.text.pipeline import TireAnnotationPipeline
@@ -14,6 +20,54 @@ from logs_manager import log_wrapper
 cfg = TireVisionConfig()
 thread_pipeline = TireThreadPipeline(cfg.thread_pipeline_config)
 annotation_pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
+
+
+bearer_scheme = HTTPBearer(
+    scheme_name="Bearer",
+    description="Bearer token authentication",
+)
+
+API_TOKEN = os.environ["API_TOKEN"]
+
+
+def parse_thread_options(
+    options: Optional[str] = Form(
+        None,
+        description=(
+            "JSON-encoded TireThreadPipelineOptions (confidence_threshold, nms_iou_threshold, max_detections, padding_frac)."
+        ),
+    ),
+) -> Optional[TireThreadPipelineOptions]:
+    if options is None:
+        return None
+    return TireThreadPipelineOptions.model_validate_json(options)
+
+
+def parse_annotation_options(
+    options: Optional[str] = Form(
+        None,
+        description=("JSON-encoded TireAnnotationPipelineOptions (ocr and index)."),
+    ),
+) -> Optional[TireAnnotationPipelineOptions]:
+    if options is None:
+        return None
+    return TireAnnotationPipelineOptions.model_validate_json(options)
+
+
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+):
+    """
+    Ensure Authorization: Bearer <token> is present and valid.
+    """
+    token = credentials.credentials
+    if credentials.scheme.lower() != "bearer" or token != API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
 
 
 @log_wrapper
@@ -48,3 +102,20 @@ def add_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
     return image_rgb
+
+
+def validate_image(b64_data: str) -> None:
+    try:
+        raw = base64.b64decode(b64_data)
+        img = Image.open(io.BytesIO(raw))
+        img.verify()
+    except (base64.binascii.Error, UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=400, detail="Image is corrupted or not valid")
+
+
+def validate_image_bytes(image_bytes: bytes) -> None:
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img.verify()
+    except (UnidentifiedImageError, OSError):
+        raise HTTPException(status_code=400, detail="Image is corrupted or not valid")

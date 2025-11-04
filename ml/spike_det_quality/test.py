@@ -144,15 +144,15 @@ def main():
         annotations_for_image = [a for a in annotations if a["image_id"] == image_id]
 
         predictions = get_predictions(args.url, image_path, args.token)
-        spikes = predictions["spikes"]
+        studs = predictions["studs"]
         image_np = base64_to_np_array(predictions["image"])
 
-        boxes_list = [spike["box"] for spike in spikes]
+        boxes_list = [spike["box"] for spike in studs]
         boxes_pred = np.zeros((0, 4), dtype=np.float32)
         if len(boxes_list) > 0:
             boxes_pred = cxcywh_to_xyxy(np.array(boxes_list, dtype=np.float32))
 
-        labels_pred = np.array([spike["class"] for spike in spikes], dtype=np.int32)
+        labels_pred = np.array([spike["class"] for spike in studs], dtype=np.int32)
         boxes_annot = cxcywh_to_xyxy(
             np.array(
                 [annotation["bbox"] for annotation in annotations_for_image],

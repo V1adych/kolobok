@@ -117,7 +117,9 @@ class DepthRegressorConfig:
 class SidewallSegmentatorConfig:
     sidewall_segmentator_onnx: str = "onnx/sidewall_segmentator.onnx"
     resize_shape: Tuple[int, int] = (512, 512)
-    options: SidewallSegmentatorOptions = field(default_factory=SidewallSegmentatorOptions)
+    options: SidewallSegmentatorOptions = field(
+        default_factory=SidewallSegmentatorOptions
+    )
 
 
 @dataclass(frozen=True)
