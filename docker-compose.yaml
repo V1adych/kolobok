@@ -33,15 +33,6 @@ services:
       - proxy
       - default
 
-  tg:
-    build: ./tg
-    image: ghcr.io/v1adych/kolobok:tg
-    container_name: tg
-    depends_on:
-      - ml
-    env_file:
-      - .env
-
   caddy:
     image: caddy:2-alpine
     container_name: caddy
