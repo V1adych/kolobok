@@ -1,15 +1,12 @@
 import base64
 import io
-from datetime import datetime
-from functools import wraps
 from typing import Optional
 
-from fastapi import FastAPI, Depends, File, UploadFile
+from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
 from PIL import Image
 import numpy as np
 
 from models import (
-    PerfStats,
     ThreadImageRequest,
     AnnotationImageRequest,
     ThreadAnalysisResponse,
@@ -25,6 +22,7 @@ from utils import (
     validate_image,
     validate_image_bytes,
 )
+from perf import get_perf_logger
 from tire_vision.options import TireThreadPipelineOptions, TireAnnotationPipelineOptions
 
 import logging
@@ -41,44 +39,8 @@ logging.basicConfig(
 logger = logging.getLogger("app")
 
 
-def perf_logger(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = datetime.now()
-        logger.info(f"{func.__name__}: starting")
-        result = func(*args, **kwargs)
-        end_time = datetime.now()
-        logger.info(f"{func.__name__}: completed in {end_time - start_time}")
-        result.perf_stats = PerfStats(
-            request_received_timestamp=start_time.isoformat(timespec="milliseconds"),
-            request_completed_timestamp=end_time.isoformat(timespec="milliseconds"),
-            total_time_seconds=(end_time - start_time).total_seconds(),
-        )
-        return result
-
-    return wrapper
-
-
-def async_perf_logger(func):
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        start_time = datetime.now()
-        logger.info(f"{func.__name__}: starting")
-        result = await func(*args, **kwargs)
-        end_time = datetime.now()
-        logger.info(f"{func.__name__}: completed in {end_time - start_time}")
-        result.perf_stats = PerfStats(
-            request_received_timestamp=start_time.isoformat(timespec="milliseconds"),
-            request_completed_timestamp=end_time.isoformat(timespec="milliseconds"),
-            total_time_seconds=(end_time - start_time).total_seconds(),
-        )
-        return result
-
-    return wrapper
-
-
 @app.post("/api/v1/analyze_thread", response_model=ThreadAnalysisResponse)
-@perf_logger
+@get_perf_logger(logger, async_mode=False)
 def analyze_thread(
     req: ThreadImageRequest,
     token: str = Depends(verify_token),
@@ -88,7 +50,9 @@ def analyze_thread(
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
     result = get_thread_stats(image, options=req.thread_options)
     if result["success"] == 0:
-        return ThreadAnalysisResponse(success=0, detail=result["detail"])
+        raise HTTPException(
+            status_code=400, detail="Tire not found on the image, or it is too small"
+        )
 
     image_with_annotations = add_annotations(result["vis_image"], result["studs"])
 
@@ -98,7 +62,6 @@ def analyze_thread(
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
     return ThreadAnalysisResponse(
-        success=1,
         thread_depth=result["depth"],
         studs=result["studs"],
         image=img_str,
@@ -106,7 +69,7 @@ def analyze_thread(
 
 
 @app.post("/api/v1/extract_information", response_model=ExtractInformationResponse)
-@perf_logger
+@get_perf_logger(logger, async_mode=False)
 def extract_information(
     req: AnnotationImageRequest,
     token: str = Depends(verify_token),
@@ -121,7 +84,7 @@ def extract_information(
 
 
 @app.post("/api/v1/bin/analyze_thread", response_model=ThreadAnalysisResponse)
-@async_perf_logger
+@get_perf_logger(logger, async_mode=True)
 async def analyze_thread_bin(
     image: UploadFile = File(...),
     options: Optional[TireThreadPipelineOptions] = Depends(parse_thread_options),
@@ -133,7 +96,9 @@ async def analyze_thread_bin(
     image_np = np.array(Image.open(io.BytesIO(contents)))
     result = get_thread_stats(image_np, options=options)
     if result["success"] == 0:
-        return ThreadAnalysisResponse(success=0, detail=result["detail"])
+        raise HTTPException(
+            status_code=400, detail="Tire not found on the image, or it is too small"
+        )
 
     image_with_annotations = add_annotations(result["vis_image"], result["studs"])
     logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
@@ -144,7 +109,6 @@ async def analyze_thread_bin(
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
     return ThreadAnalysisResponse(
-        success=1,
         thread_depth=result["depth"],
         studs=result["studs"],
         image=img_str,
@@ -152,7 +116,7 @@ async def analyze_thread_bin(
 
 
 @app.post("/api/v1/bin/extract_information", response_model=ExtractInformationResponse)
-@async_perf_logger
+@get_perf_logger(logger, async_mode=True)
 async def extract_information_bin(
     image: UploadFile = File(...),
     options: Optional[TireAnnotationPipelineOptions] = Depends(

@@ -39,7 +39,6 @@ class StudDetection(BaseModel):
 
 
 class ThreadAnalysisResponse(BaseModel):
-    success: int
     thread_depth: Optional[float] = None
     studs: Optional[List[StudDetection]] = None
     image: Optional[str] = None
