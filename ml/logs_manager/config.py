@@ -1,9 +1,9 @@
 import os
 from dataclasses import dataclass
 
-ACCESS_KEY = os.getenv("YC_ACCESS_KEY")
-SECRET_KEY = os.getenv("YC_SECRET_KEY")
-BUCKET_NAME = os.getenv("YC_BUCKET_NAME")
+ACCESS_KEY = os.environ["YC_ACCESS_KEY"]
+SECRET_KEY = os.environ["YC_SECRET_KEY"]
+BUCKET_NAME = os.environ["YC_BUCKET_NAME"]
 
 
 @dataclass

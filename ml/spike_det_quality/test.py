@@ -176,12 +176,11 @@ def main():
             Image.fromarray(image_np).save(img_save_path)
             metrics["img_save_path"] = str(img_save_path)
         print(metrics)
-        # return1
         all_metrics.append(metrics)
 
     df = pl.DataFrame(all_metrics)
     print(df)
-    df.write_csv(Path(args.img_save_dir) / "metrics.csv")
+    df.write_csv("metrics.csv")
     print(
         df.select("det_tp", "det_fp", "det_fn", "cls_correct", "cls_incorrect").mean()
     )
