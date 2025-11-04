@@ -18,14 +18,15 @@ annotation_pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
 @log_wrapper
 def get_thread_stats(image: np.ndarray) -> Dict[str, Any]:
     result = thread_pipeline(image)
+    for i in range(len(result["spikes"])):
+        result["spikes"][i]["label"] = CLASS_MAPPING[result["spikes"][i]["class"]]
+
     return result
 
 
 @log_wrapper
 def extract_tire_info(image: np.ndarray) -> Dict[str, Any]:
     result = annotation_pipeline(image)
-    for i in range(len(result["spikes"])):
-        result["spikes"][i]["label"] = CLASS_MAPPING[result["spikes"][i]["class"]]
 
     return result
 
