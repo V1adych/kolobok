@@ -97,14 +97,14 @@ ort_providers = ["CPUExecutionProvider"]
 class ThreadSegmentatorConfig:
     thread_segmentator_onnx: str = "onnx/thread_segmentator.onnx"
     resize_shape: Tuple[int, int] = (512, 512)
-    options: ThreadSegmentatorOptions = ThreadSegmentatorOptions()
+    options: ThreadSegmentatorOptions = field(default_factory=ThreadSegmentatorOptions)
 
 
 @dataclass(frozen=True)
 class StudPipelineConfig:
     spike_detector_onnx: str = "onnx/spike_detector.onnx"
     resize_shape: Tuple[int, int] = (560, 560)
-    options: StudPipelineOptions = StudPipelineOptions()
+    options: StudPipelineOptions = field(default_factory=StudPipelineOptions)
 
 
 @dataclass(frozen=True)
@@ -117,7 +117,7 @@ class DepthRegressorConfig:
 class SidewallSegmentatorConfig:
     sidewall_segmentator_onnx: str = "onnx/sidewall_segmentator.onnx"
     resize_shape: Tuple[int, int] = (512, 512)
-    options: SidewallSegmentatorOptions = SidewallSegmentatorOptions()
+    options: SidewallSegmentatorOptions = field(default_factory=SidewallSegmentatorOptions)
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,7 @@ class SidewallUnwrapperConfig:
     rectify_aspect_ratio_threshold: float = 1.1
     mask_postprocess_ksize: int = 21
     concat_strip: bool = True
-    options: SidewallUnwrapperOptions = SidewallUnwrapperOptions()
+    options: SidewallUnwrapperOptions = field(default_factory=SidewallUnwrapperOptions)
 
 
 @dataclass(frozen=True)
@@ -136,7 +136,7 @@ class OCRConfig:
     api_key: str = os.environ["OPENROUTER_API_KEY"]
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-    options: OCROptions = OCROptions()
+    options: OCROptions = field(default_factory=OCROptions)
 
 
 @dataclass(frozen=True)
@@ -149,7 +149,7 @@ class IndexConfig:
     table_name: str = "models"
     table_cache_path: str = "models.parquet"
     table_cache_ttl_seconds: int = float("inf")
-    options: IndexOptions = IndexOptions()
+    options: IndexOptions = field(default_factory=IndexOptions)
 
 
 @dataclass(frozen=True)
