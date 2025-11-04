@@ -1,7 +1,7 @@
 import base64
 import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from PIL import Image
 import io
 from traceback import format_exc
@@ -10,6 +10,8 @@ import re
 import numpy as np
 from openai import OpenAI, AsyncOpenAI
 from tire_vision.config import OCRConfig
+from tire_vision.options import OCROptions
+from dataclasses import replace
 
 import logging
 
@@ -35,8 +37,11 @@ class OCRPipeline:
         self,
         images: List[np.ndarray],
         prompt: str,
+        options: Optional[OCROptions] = None,
     ) -> Dict[str, List[str]]:
         file_inputs = [self._prepare_image(img) for img in images]
+        if options is not None:
+            self.config = replace(self.config, options=options)
 
         try:
             user_prompt = self._build_user_prompt(prompt)
@@ -50,8 +55,13 @@ class OCRPipeline:
             )
             return self._get_default_response()
 
-    def __call__(self, images: List[np.ndarray], prompt: str) -> Dict[str, List[str]]:
-        return self.extract_tire_info(images, prompt)
+    def __call__(
+        self,
+        images: List[np.ndarray],
+        prompt: str,
+        options: Optional[OCROptions] = None,
+    ) -> Dict[str, List[str]]:
+        return self.extract_tire_info(images, prompt, options=options)
 
     def _build_user_prompt(self, prompt: str) -> str:
         base_prompt = self.config.prompt
@@ -94,18 +104,20 @@ class OCRPipeline:
 
     def _get_request_kwargs(self, messages: List[dict]) -> Dict[str, Any]:
         params = dict(
-            model=self.config.model_name,
+            model=self.config.options.model_name,
             messages=messages,
             stream=False,
-            temperature=self.config.temperature,
-            top_p=self.config.top_p,
-            max_tokens=self.config.max_completion_tokens,
-            presence_penalty=self.config.presence_penalty,
-            frequency_penalty=self.config.frequency_penalty,
+            temperature=self.config.options.temperature,
+            top_p=self.config.options.top_p,
+            max_tokens=self.config.options.max_completion_tokens,
+            presence_penalty=self.config.options.presence_penalty,
+            frequency_penalty=self.config.options.frequency_penalty,
         )
 
-        if self.config.providers_list:
-            params["extra_body"] = {"provider": {"only": self.config.providers_list}}
+        if self.config.options.providers_list:
+            params["extra_body"] = {
+                "provider": {"only": self.config.options.providers_list}
+            }
 
         return params
 

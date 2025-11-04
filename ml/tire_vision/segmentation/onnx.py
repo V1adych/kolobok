@@ -12,12 +12,10 @@ class OnnxSegmentator:
         self,
         onnx_path: str,
         resize_shape: Tuple[int, int],
-        threshold: Optional[float] = None,
         resize_mask_shape: Optional[Tuple[int, int]] = None,
     ):
         self.onnx_path = onnx_path
         self.resize_shape = resize_shape
-        self.threshold = threshold
         self.resize_mask_shape = resize_mask_shape
         self.session = ort.InferenceSession(
             self.onnx_path,
@@ -25,7 +23,7 @@ class OnnxSegmentator:
             sess_options=ort_opts,
         )
 
-    def forward(self, image: np.ndarray):
+    def forward(self, image: np.ndarray, threshold: Optional[float] = None):
         """
         Args:
             image: np.ndarray (H, W, 3), np.uint8,
@@ -54,10 +52,10 @@ class OnnxSegmentator:
         )
         probs = cv2.resize(probs, resize_mask_shape, interpolation=cv2.INTER_LINEAR)
 
-        if self.threshold is not None:
-            return (probs > self.threshold).astype(np.uint8) * 255
+        if threshold is not None:
+            return (probs > threshold).astype(np.uint8) * 255
 
         return probs
 
-    def __call__(self, image: np.ndarray):
-        return self.forward(image)
+    def __call__(self, image: np.ndarray, threshold: Optional[float] = None):
+        return self.forward(image, threshold=threshold)

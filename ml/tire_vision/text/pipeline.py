@@ -12,6 +12,7 @@ from tire_vision.text.preprocessor.unwrapper import SidewallUnwrapper
 from tire_vision.text.ocr.pipeline import OCRPipeline
 from tire_vision.text.index.pipeline import IndexPipeline
 from tire_vision.config import TireAnnotationPipelineConfig
+from tire_vision.options import TireAnnotationPipelineOptions
 
 import logging
 
@@ -40,7 +41,9 @@ class TireAnnotationPipeline:
         self.logger = logging.getLogger("tire_annotation_pipeline")
         self.logger.info("TireAnnotationPipeline initialized")
 
-    def __call__(self, image: np.ndarray) -> Dict[str, Any]:
+    def __call__(
+        self, image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None
+    ) -> Dict[str, Any]:
         self.logger.info("Running TireAnnotationPipeline")
         start_time = time.perf_counter()
 
@@ -50,9 +53,22 @@ class TireAnnotationPipeline:
         self.logger.info("Running SidewallSegmentator and SidewallUnwrapper")
         try:
             self.logger.info("Running TireDetector")
-            tire_mask = self.detector(image)
+            tire_mask = self.detector(
+                image,
+                options=(
+                    options.sidewall_segmentator_options
+                    if options is not None
+                    else None
+                ),
+            )
             self.logger.info(f"TireDetector result shape: {tire_mask.shape}")
-            unwrapped_image = self.unwrapper(image, tire_mask)
+            unwrapped_image = self.unwrapper(
+                image,
+                tire_mask,
+                options=(
+                    options.sidewall_unwrapper_options if options is not None else None
+                ),
+            )
             unwrap_success = True
 
         except Exception:
@@ -70,14 +86,21 @@ class TireAnnotationPipeline:
         images_for_ocr = list(map(self._dynamic_resize, images_for_ocr))
 
         self.logger.info("Running OCRPipeline")
-        ocr_result = self.ocr(images_for_ocr, prompt)
+        ocr_result = self.ocr(
+            images_for_ocr,
+            prompt,
+            options=(options.ocr_options if options is not None else None),
+        )
         ocr_result = self._postprocess_ocr_result(ocr_result)
         self.logger.info("OCRPipeline result:")
         self.logger.info(f"strings: {ocr_result['strings']}")
         self.logger.info(f"tire_size: {ocr_result['tire_size']}")
 
         self.logger.info("Running IndexPipeline")
-        index_results = self.index(ocr_result["strings"])
+        index_results = self.index(
+            ocr_result["strings"],
+            options=(options.index_options if options is not None else None),
+        )
         self.logger.info("IndexPipeline results:")
         self.logger.info(
             f"(brand, model, score): {[(r['brand_name'], r['model_name'], round(r['combined_score'], 2)) for r in index_results]}"

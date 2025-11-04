@@ -5,6 +5,8 @@ import numpy as np
 
 from tire_vision.config import ThreadSegmentatorConfig
 from tire_vision.segmentation.onnx import OnnxSegmentator
+from tire_vision.options import ThreadSegmentatorOptions
+from dataclasses import replace
 
 
 class ThreadSegmentator:
@@ -15,15 +17,20 @@ class ThreadSegmentator:
         self.segmentator = OnnxSegmentator(
             self.config.thread_segmentator_onnx,
             self.config.resize_shape,
-            self.config.confidence_threshold,
         )
 
         self.logger.info("ThreadSegmentator initialized successfully")
 
-    def forward(self, image: np.ndarray):
+    def forward(
+        self, image: np.ndarray, options: ThreadSegmentatorOptions | None = None
+    ):
         start_time = time.perf_counter()
+        if options is not None:
+            self.config = replace(self.config, options=options)
 
-        mask = self.segmentator(image)
+        mask = self.segmentator(
+            image, threshold=self.config.options.confidence_threshold
+        )
 
         end_time = time.perf_counter()
         self.logger.info(
@@ -32,11 +39,15 @@ class ThreadSegmentator:
 
         return mask
 
-    def crop_tire(self, image: np.ndarray):
+    def crop_tire(
+        self, image: np.ndarray, options: ThreadSegmentatorOptions | None = None
+    ):
         self.logger.info("Cropping tire")
+        if options is not None:
+            self.config = replace(self.config, options=options)
         mask = self.forward(image)[..., None] // 255
 
-        if np.count_nonzero(mask) < self.config.min_tire_pixels:
+        if np.count_nonzero(mask) < self.config.options.min_tire_pixels:
             self.logger.warning("Tire not found on the image, or it is too small")
             return None
 
@@ -49,8 +60,8 @@ class ThreadSegmentator:
         x_min, x_max = coords[1].min(), coords[1].max()
 
         height, width = image.shape[:2]
-        pad_h = int(height * self.config.padding_frac)
-        pad_w = int(width * self.config.padding_frac)
+        pad_h = int(height * self.config.options.padding_frac)
+        pad_w = int(width * self.config.options.padding_frac)
 
         y_min = max(0, y_min - pad_h)
         y_max = min(height, y_max + pad_h)

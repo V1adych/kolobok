@@ -1,9 +1,9 @@
 from contextlib import contextmanager
 import logging
-
 import time
 from pathlib import Path
 from typing import Optional, List, Tuple, Literal
+from dataclasses import replace
 
 import numpy as np
 from sqlalchemy import Table, Column, Integer, TEXT, MetaData, create_engine, text
@@ -14,6 +14,7 @@ import rapidfuzz
 
 
 from tire_vision.config import IndexConfig
+from tire_vision.options import IndexOptions
 
 
 metadata = MetaData()
@@ -43,12 +44,12 @@ class TireModelDatabase:
         self.table_path = Path(self.config.table_cache_path)
         self._table = None
 
-        similarity_metrics = {
+        self._similarity_metrics = {
             "levenshtein": rapidfuzz.distance.Levenshtein.normalized_similarity,
             "jaro_winkler": rapidfuzz.distance.JaroWinkler.similarity,
         }
 
-        comb_metrics = {
+        self._comb_metrics = {
             "product": self.product,
             "arithmetic_mean": self.arithmetic_mean,
             "harmonic_mean": self.harmonic_mean,
@@ -56,15 +57,17 @@ class TireModelDatabase:
             "euclidean": self.euclidean,
         }
 
-        self.similarity_metric = similarity_metrics[self.config.similarity_metric]
-        self.comb_metric = comb_metrics[self.config.comb_metric]
-
         self.logger.info("TireModelDatabase initialized successfully")
 
     def calculate_score(self, name: str, queries: List[str]) -> List[Tuple[float, str]]:
         return list(
             map(
-                lambda x: (self.similarity_metric(name, x[1]), x[0]),
+                lambda x: (
+                    self._similarity_metrics[self.config.options.similarity_metric](
+                        name, x[1]
+                    ),
+                    x[0],
+                ),
                 map(lambda x: (x, x.lower().strip()), queries),
             )
         )
@@ -77,11 +80,13 @@ class TireModelDatabase:
         brand_id: pl.Series,
     ) -> pl.Series:
         return (
-            self.comb_metric(model_score, brand_score)
+            self._comb_metrics[self.config.options.comb_metric](
+                model_score, brand_score
+            )
             + pl.when(model_parent_id == brand_id)
-            .then(self.config.brand_model_match_bonus)
+            .then(self.config.options.brand_model_match_bonus)
             .otherwise(0)
-        ) / (1 + self.config.brand_model_match_bonus)
+        ) / (1 + self.config.options.brand_model_match_bonus)
 
     @contextmanager
     def get_session(self):
@@ -178,24 +183,34 @@ class TireModelDatabase:
                 "query_normalized": list(map(lambda x: x.lower().strip(), queries)),
             }
         ).lazy()
-        df = self.table.lazy().join(df_queries, how="cross").with_columns(
-            pl.struct([
-                pl.col("name_normalized"),
-                pl.col("query_normalized"),
-            ]).map_elements(
-                lambda x: self.similarity_metric(x["name_normalized"], x["query_normalized"]),
-                return_dtype=pl.Float64,
-            ).alias("score"),
+        df = (
+            self.table.lazy()
+            .join(df_queries, how="cross")
+            .with_columns(
+                pl.struct(
+                    [
+                        pl.col("name_normalized"),
+                        pl.col("query_normalized"),
+                    ]
+                )
+                .map_elements(
+                    lambda x: self.similarity_metric(
+                        x["name_normalized"], x["query_normalized"]
+                    ),
+                    return_dtype=pl.Float64,
+                )
+                .alias("score"),
+            )
         )
         return df
 
     def get_best_matches(self, df: pl.LazyFrame, kind: Literal["model", "brand"]):
         if kind == "brand":
             df = df.filter(pl.col("parent_id") == 0)
-            limit_matches = self.config.max_brand_matches
+            limit_matches = self.config.options.max_brand_matches
         elif kind == "model":
             df = df.filter(pl.col("parent_id") != 0)
-            limit_matches = self.config.max_model_matches
+            limit_matches = self.config.options.max_model_matches
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -220,12 +235,14 @@ class TireModelDatabase:
                 .over(f"{kind}_id")
                 .alias("rank")
             )
-            .filter(pl.col("rank") <= self.config.max_distinct_matches)
+            .filter(pl.col("rank") <= self.config.options.max_distinct_matches)
             .drop("rank")
             .limit(limit_matches)
         )
 
-    def query(self, queries: List[str]):
+    def query(self, queries: List[str], options: Optional[IndexOptions] = None):
+        if options is not None:
+            self.config = replace(self.config, options=options)
         suffix = "_right"
         df = self.get_scores(queries)
         df_model = self.get_best_matches(df, "model")
@@ -264,7 +281,7 @@ class TireModelDatabase:
                 ],
                 descending=[True, True, True],
             )
-            .limit(self.config.max_query_results)
+            .limit(self.config.options.max_query_results)
         )
 
         return df_model_brand.collect()

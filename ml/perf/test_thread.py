@@ -126,7 +126,7 @@ def print_statistics(results: List[RequestResult], total_time: float):
     error_codes = {}
     error_messages = {}
     failed_requests_details = []
-    
+
     for i, result in enumerate(results):
         if not result.success:
             error_codes[result.status_code] = error_codes.get(result.status_code, 0) + 1
@@ -155,7 +155,9 @@ def print_statistics(results: List[RequestResult], total_time: float):
             if result.error:
                 print(f"  Error: {result.error}")
             if result.response_text:
-                print(f"  Response: {result.response_text[:500]}{'...' if len(result.response_text) > 500 else ''}")
+                print(
+                    f"  Response: {result.response_text[:500]}{'...' if len(result.response_text) > 500 else ''}"
+                )
             print("-" * 60)
 
     print("=" * 60)

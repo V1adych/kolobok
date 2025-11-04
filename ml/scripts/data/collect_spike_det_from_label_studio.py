@@ -7,8 +7,6 @@ import cv2
 import tyro
 
 
-
-
 @dataclass
 class Args:
     src_images_dir: str
@@ -80,10 +78,9 @@ def main():
             except Exception as e:
                 print(f"Error getting box for {image_name}: {e}")
                 continue
-          
-        
+
         img_save_path = dst_images_dir / f"{counter:06d}.png"
-        mask_bboxes_path = (dst_bboxes_dir / f"{counter:06d}.json")
+        mask_bboxes_path = dst_bboxes_dir / f"{counter:06d}.json"
 
         img_save_path.parent.mkdir(parents=True, exist_ok=True)
         mask_bboxes_path.parent.mkdir(parents=True, exist_ok=True)

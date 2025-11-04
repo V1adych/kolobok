@@ -34,12 +34,16 @@ def find_best_match(target_path: Path, images_dir: Path) -> Path | None:
     if not image_files:
         return None
 
-    prefix_lengths = [find_longest_common_prefix(target_name, img.name) for img in image_files]
+    prefix_lengths = [
+        find_longest_common_prefix(target_name, img.name) for img in image_files
+    ]
     max_idx = max(range(len(prefix_lengths)), key=prefix_lengths.__getitem__)
     return image_files[max_idx] if prefix_lengths[max_idx] > 0 else None
 
 
-def normalized_yolo_bbox(x: float, y: float, w: float, h: float, img_w: int, img_h: int) -> Dict[str, float]:
+def normalized_yolo_bbox(
+    x: float, y: float, w: float, h: float, img_w: int, img_h: int
+) -> Dict[str, float]:
     cx = (x + w / 2.0) / float(img_w)
     cy = (y + h / 2.0) / float(img_h)
     nw = w / float(img_w)
@@ -74,7 +78,9 @@ def main():
     categories: List[Dict] = data.get("categories", [])
 
     # Build category id -> name mapping
-    cat_id_to_name: Dict[int, str] = {c.get("id"): c.get("name", str(c.get("id"))) for c in categories}
+    cat_id_to_name: Dict[int, str] = {
+        c.get("id"): c.get("name", str(c.get("id"))) for c in categories
+    }
 
     # Build image_id -> list[annotation] index
     img_id_to_annots: Dict[int, List[Dict]] = {}
@@ -128,7 +134,9 @@ def main():
         relevant_annots = img_id_to_annots.get(image_id, [])
         if len(relevant_annots) == 0:
             # No annotations; skip
-            print(f"No annotations for image_id={image_id} ({candidate_path.name}), skipping.")
+            print(
+                f"No annotations for image_id={image_id} ({candidate_path.name}), skipping."
+            )
             continue
 
         boxes: List[Dict] = []
@@ -139,18 +147,24 @@ def main():
             x, y, w, h = bbox
             norm = normalized_yolo_bbox(x, y, w, h, img_w, img_h)
             cat_id = annot.get("category_id")
-            label = cat_id_to_name.get(cat_id, str(cat_id) if cat_id is not None else "")
-            boxes.append({
-                "x": norm["x"],
-                "y": norm["y"],
-                "w": norm["w"],
-                "h": norm["h"],
-                "label": label,
-            })
+            label = cat_id_to_name.get(
+                cat_id, str(cat_id) if cat_id is not None else ""
+            )
+            boxes.append(
+                {
+                    "x": norm["x"],
+                    "y": norm["y"],
+                    "w": norm["w"],
+                    "h": norm["h"],
+                    "label": label,
+                }
+            )
 
         if len(boxes) == 0:
             # No valid boxes; skip
-            print(f"No valid boxes for image_id={image_id} ({candidate_path.name}), skipping.")
+            print(
+                f"No valid boxes for image_id={image_id} ({candidate_path.name}), skipping."
+            )
             continue
 
         # Save sequentially to align with the LS converter convention
@@ -169,5 +183,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

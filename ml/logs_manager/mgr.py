@@ -69,6 +69,8 @@ class LogsMgr:
         self._upload_json(json_data, json_path)
         self._upload_txt(metadata, metadata_path)
 
-        log_path = f"{self.config.endpoint_url}/{self.bucket_name}/{self.prefix}/{cur_time}"
+        log_path = (
+            f"{self.config.endpoint_url}/{self.bucket_name}/{self.prefix}/{cur_time}"
+        )
 
         self.logger.info(f"Log uploaded to {log_path}")

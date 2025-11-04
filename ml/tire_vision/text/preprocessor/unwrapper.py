@@ -1,7 +1,11 @@
+from typing import Optional
+
 import numpy as np
 import cv2
 
 from tire_vision.config import SidewallUnwrapperConfig
+from tire_vision.options import SidewallUnwrapperOptions
+from dataclasses import replace
 
 
 class SidewallUnwrapper:
@@ -14,7 +18,9 @@ class SidewallUnwrapper:
 
     def _postprocess_mask(self, mask: np.ndarray):
         kernel_size = self.config.mask_postprocess_ksize
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (kernel_size, kernel_size)
+        )
         processed_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         processed_mask = cv2.morphologyEx(processed_mask, cv2.MORPH_OPEN, kernel)
 
@@ -32,8 +38,15 @@ class SidewallUnwrapper:
         cnt = max(cnts, key=cv2.contourArea)
         return cv2.fitEllipse(cnt)
 
-    def get_unwrapped_tire(self, image: np.ndarray, mask: np.ndarray):
+    def get_unwrapped_tire(
+        self,
+        image: np.ndarray,
+        mask: np.ndarray,
+        options: Optional[SidewallUnwrapperOptions] = None,
+    ):
         h, w = image.shape[:2]
+        if options is not None:
+            self.config = replace(self.config, options=options)
         mask_cc = self._postprocess_mask(mask)
         (cx, cy), (MA, ma), angle = self._ellipse_params_from_mask(mask_cc)
         cx, cy, MA, ma = float(cx), float(cy), float(MA), float(ma)
@@ -53,7 +66,7 @@ class SidewallUnwrapper:
 
         polar_image = cv2.warpPolar(
             image,
-            self.config.polar_dsize,
+            self.config.options.polar_dsize,
             (cx, cy),
             r_minor,
             flags=cv2.INTER_CUBIC,
@@ -73,8 +86,18 @@ class SidewallUnwrapper:
 
         return cv2.cvtColor(lab_image, cv2.COLOR_LAB2RGB)
 
-    def forward(self, image: np.ndarray, mask: np.ndarray):
-        return self.get_unwrapped_tire(image, mask)
+    def forward(
+        self,
+        image: np.ndarray,
+        mask: np.ndarray,
+        options: SidewallUnwrapperOptions | None = None,
+    ):
+        return self.get_unwrapped_tire(image, mask, options=options)
 
-    def __call__(self, image: np.ndarray, mask: np.ndarray):
-        return self.forward(image, mask)
+    def __call__(
+        self,
+        image: np.ndarray,
+        mask: np.ndarray,
+        options: SidewallUnwrapperOptions | None = None,
+    ):
+        return self.forward(image, mask, options=options)

@@ -59,7 +59,10 @@ class OBDataset(Dataset):
         stds = rfdetr.detr.RFDETR.stds
 
         base_transforms = [
-            transforms.Resize((self.size, self.size), interpolation=transforms.InterpolationMode.BILINEAR),
+            transforms.Resize(
+                (self.size, self.size),
+                interpolation=transforms.InterpolationMode.BILINEAR,
+            ),
             transforms.ToTensor(),
         ]
         if self.normalize:
@@ -97,9 +100,13 @@ class OBDataset(Dataset):
             labels.append(label_id)
 
         if len(cxcywh) == 0:
-            return torch.zeros((0, 4), dtype=torch.float32), torch.zeros((0,), dtype=torch.long)
+            return torch.zeros((0, 4), dtype=torch.float32), torch.zeros(
+                (0,), dtype=torch.long
+            )
 
-        return torch.tensor(cxcywh, dtype=torch.float32), torch.tensor(labels, dtype=torch.long)
+        return torch.tensor(cxcywh, dtype=torch.float32), torch.tensor(
+            labels, dtype=torch.long
+        )
 
     def __getitem__(self, idx: int):
         img_path, ann_path = self.samples[idx]
@@ -127,8 +134,12 @@ def collate_fn(batch):
 
 def box_iou_xyxy(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     # boxes: [N,4] in xyxy
-    area1 = (boxes1[:, 2] - boxes1[:, 0]).clamp(min=0) * (boxes1[:, 3] - boxes1[:, 1]).clamp(min=0)
-    area2 = (boxes2[:, 2] - boxes2[:, 0]).clamp(min=0) * (boxes2[:, 3] - boxes2[:, 1]).clamp(min=0)
+    area1 = (boxes1[:, 2] - boxes1[:, 0]).clamp(min=0) * (
+        boxes1[:, 3] - boxes1[:, 1]
+    ).clamp(min=0)
+    area2 = (boxes2[:, 2] - boxes2[:, 0]).clamp(min=0) * (
+        boxes2[:, 3] - boxes2[:, 1]
+    ).clamp(min=0)
     lt = torch.max(boxes1[:, None, :2], boxes2[None, :, :2])
     rb = torch.min(boxes1[:, None, 2:], boxes2[None, :, 2:])
     wh = (rb - lt).clamp(min=0)
@@ -161,19 +172,26 @@ class Args:
     normalize: bool = False
     prefetch_factor: int = 2
 
+
 class DETRLightning(pl.LightningModule):
     def __init__(self, args: "Args"):
         super().__init__()
         self.save_hyperparameters(vars(args))
         self.args = args
-        self.model = get_detr(num_classes=args.num_classes + 1, group_detr=args.group_detr, resolution=args.size)
+        self.model = get_detr(
+            num_classes=args.num_classes + 1,
+            group_detr=args.group_detr,
+            resolution=args.size,
+        )
         self.matcher = HungarianMatcher(
             class_cost=args.class_cost,
             bbox_cost=args.bbox_cost,
             giou_cost=args.giou_cost,
             num_classes=args.num_classes,
         )
-        self.criterion = DETRCriterion(num_classes=args.num_classes, matcher=self.matcher, eos_coef=args.eos_coef)
+        self.criterion = DETRCriterion(
+            num_classes=args.num_classes, matcher=self.matcher, eos_coef=args.eos_coef
+        )
 
     def forward(self, images: torch.Tensor):
         return self.model(images)
@@ -183,10 +201,34 @@ class DETRLightning(pl.LightningModule):
         outputs = self(images)
         losses = self.criterion(outputs, targets)
         loss = sum(losses.values())
-        self.log("train_labels_loss", losses["loss_ce"], prog_bar=True, on_step=True, on_epoch=True)
-        self.log("train_boxes_loss", losses["loss_bbox"], prog_bar=True, on_step=True, on_epoch=True)
-        self.log("train_giou_loss", losses["loss_giou"], prog_bar=True, on_step=True, on_epoch=True)
-        self.log("train_cardinality_loss", losses["cardinality_error"], prog_bar=True, on_step=True, on_epoch=True)
+        self.log(
+            "train_labels_loss",
+            losses["loss_ce"],
+            prog_bar=True,
+            on_step=True,
+            on_epoch=True,
+        )
+        self.log(
+            "train_boxes_loss",
+            losses["loss_bbox"],
+            prog_bar=True,
+            on_step=True,
+            on_epoch=True,
+        )
+        self.log(
+            "train_giou_loss",
+            losses["loss_giou"],
+            prog_bar=True,
+            on_step=True,
+            on_epoch=True,
+        )
+        self.log(
+            "train_cardinality_loss",
+            losses["cardinality_error"],
+            prog_bar=True,
+            on_step=True,
+            on_epoch=True,
+        )
         self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
 
@@ -195,14 +237,40 @@ class DETRLightning(pl.LightningModule):
         outputs = self(images)
         losses = self.criterion(outputs, targets)
         loss = sum(losses.values())
-        self.log("val_labels_loss", losses["loss_ce"], prog_bar=True, on_step=False, on_epoch=True)
-        self.log("val_boxes_loss", losses["loss_bbox"], prog_bar=True, on_step=False, on_epoch=True)
-        self.log("val_giou_loss", losses["loss_giou"], prog_bar=True, on_step=False, on_epoch=True)
-        self.log("val_cardinality_loss", losses["cardinality_error"], prog_bar=True, on_step=False, on_epoch=True)
+        self.log(
+            "val_labels_loss",
+            losses["loss_ce"],
+            prog_bar=True,
+            on_step=False,
+            on_epoch=True,
+        )
+        self.log(
+            "val_boxes_loss",
+            losses["loss_bbox"],
+            prog_bar=True,
+            on_step=False,
+            on_epoch=True,
+        )
+        self.log(
+            "val_giou_loss",
+            losses["loss_giou"],
+            prog_bar=True,
+            on_step=False,
+            on_epoch=True,
+        )
+        self.log(
+            "val_cardinality_loss",
+            losses["cardinality_error"],
+            prog_bar=True,
+            on_step=False,
+            on_epoch=True,
+        )
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.args.lr, weight_decay=1e-4)
+        optimizer = torch.optim.AdamW(
+            self.parameters(), lr=self.args.lr, weight_decay=1e-4
+        )
         return optimizer
 
 
@@ -262,7 +330,9 @@ def main():
     )
 
     print("Starting training...")
-    trainer.fit(lit_model, train_loader, val_loader, ckpt_path=args.resume_training_checkpoint)
+    trainer.fit(
+        lit_model, train_loader, val_loader, ckpt_path=args.resume_training_checkpoint
+    )
 
 
 if __name__ == "__main__":

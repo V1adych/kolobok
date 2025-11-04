@@ -5,7 +5,9 @@ import numpy as np
 import cv2
 import onnxruntime as ort
 
-from tire_vision.config import SpikePipelineConfig, ort_providers, ort_opts
+from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts
+from tire_vision.options import StudPipelineOptions
+from dataclasses import replace
 
 
 import logging
@@ -76,8 +78,8 @@ def nms(
     return np.array(keep, dtype=np.int32)
 
 
-class SpikePipeline:
-    def __init__(self, config: SpikePipelineConfig):
+class StudPipeline:
+    def __init__(self, config: StudPipelineConfig):
         self.config = config
         self.det_session = ort.InferenceSession(
             self.config.spike_detector_onnx,
@@ -85,14 +87,18 @@ class SpikePipeline:
             sess_options=ort_opts,
         )
 
-        self.logger = logging.getLogger("spike_pipeline")
+        self.logger = logging.getLogger("stud_pipeline")
 
-        self.logger.info("SpikePipeline initialized successfully!")
+        self.logger.info("StudPipeline initialized successfully!")
 
-    def _global_topk(self, boxes: np.ndarray, logits: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _global_topk(
+        self, boxes: np.ndarray, logits: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         _, num_classes = logits.shape
         logits_flat = logits.reshape(-1)
-        topk_indices = np.argpartition(logits_flat, -self.config.max_detections)[-self.config.max_detections :]
+        topk_indices = np.argpartition(
+            logits_flat, -self.config.options.max_detections
+        )[-self.config.options.max_detections :]
         logits_selected = logits_flat[topk_indices]
         ids = np.argsort(logits_selected)[::-1]
         logits_selected = logits_selected[ids]
@@ -107,23 +113,29 @@ class SpikePipeline:
     def _nms_filter(
         self, boxes: np.ndarray, logits: np.ndarray, labels: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        keep_ids = nms(boxes, logits, self.config.nms_iou_threshold)
+        keep_ids = nms(boxes, logits, self.config.options.nms_iou_threshold)
 
         return boxes[keep_ids], logits[keep_ids], labels[keep_ids]
 
     def _confidence_filter(
         self, boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
-        keep = scores > self.config.confidence_threshold
+        keep = scores > self.config.options.confidence_threshold
 
         return boxes[keep], scores[keep], labels[keep]
 
-    def __call__(self, image: np.ndarray) -> List[Dict[str, Any]]:
+    def __call__(
+        self, image: np.ndarray, options: StudPipelineOptions | None = None
+    ) -> List[Dict[str, Any]]:
         start_time = time.perf_counter()
+        if options is not None:
+            self.config = replace(self.config, options=options)
 
         h, w, _ = image.shape
 
-        image = cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
+        image = cv2.resize(
+            image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR
+        )
         image = image.transpose(2, 0, 1)[None].astype(np.float32) / 255
 
         boxes_cxcywh, logits = self.det_session.run(None, {"input": image})
@@ -154,6 +166,6 @@ class SpikePipeline:
         ]
 
         latency = time.perf_counter() - start_time
-        self.logger.info(f"Spike pipeline completed in {latency:.4f} seconds")
+        self.logger.info(f"Stud pipeline completed in {latency:.4f} seconds")
 
         return result

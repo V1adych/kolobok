@@ -15,8 +15,10 @@ class DepthRegressor:
         )
 
     def forward(self, image: np.ndarray):
-        resized_image = cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
-        
+        resized_image = cv2.resize(
+            image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR
+        )
+
         # Normalize and transpose for model input
         image_input = resized_image.transpose(2, 0, 1)[None].astype(np.float32) / 255
 

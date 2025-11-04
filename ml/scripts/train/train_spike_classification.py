@@ -163,7 +163,12 @@ class SpikeClassificationModule(pl.LightningModule):
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_acc", acc, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train_lr", self.trainer.optimizers[0].param_groups[0]["lr"], on_step=True, prog_bar=True)
+        self.log(
+            "train_lr",
+            self.trainer.optimizers[0].param_groups[0]["lr"],
+            on_step=True,
+            prog_bar=True,
+        )
         return loss
 
     def validation_step(self, batch, batch_idx):

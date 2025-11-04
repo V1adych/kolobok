@@ -48,7 +48,7 @@ def check_correct(gt: dict[str, object], candidates: list[dict[str, object]]):
             result["max_ratio_brand"] = 1
             result["max_ratio_model"] = 1
             return result
-        
+
         if candidate["brand_id"] == gt["brand_id"]:
             result["absolutely_correct"] = 0.5
             result["max_ratio_brand"] = 1
@@ -91,7 +91,9 @@ async def get_prediction(
         headers = {"Authorization": f"Bearer {token}"}
         data = {"image": image_bytes, "model": "ocr"}
         try:
-            response = await client.post(endpoint, json=data, headers=headers, timeout=timeout)
+            response = await client.post(
+                endpoint, json=data, headers=headers, timeout=timeout
+            )
             response.raise_for_status()
             end_time = time.time()
             return response.json(), end_time - start_time
@@ -101,6 +103,7 @@ async def get_prediction(
         except Exception as e:
             logging.error(f"An error occurred: {e}")
             return None, 0
+
 
 async def get_prediction_v2(
     client: httpx.AsyncClient,
@@ -117,7 +120,9 @@ async def get_prediction_v2(
         headers = {"Authorization": f"Bearer {token}"}
         files = {"image": ("image.jpg", image_bytes, "image/jpeg")}
         try:
-            response = await client.post(endpoint, files=files, headers=headers, timeout=timeout)
+            response = await client.post(
+                endpoint, files=files, headers=headers, timeout=timeout
+            )
             response.raise_for_status()
             end_time = time.time()
             return response.json(), end_time - start_time
@@ -149,15 +154,11 @@ async def main():
     gt_paths = Path(args.gt_dir)
     endpoint = args.url
 
-    token = (
-        args.token or os.environ["API_TOKEN"]
-    )
+    token = args.token or os.environ["API_TOKEN"]
 
     cfg = TireVisionConfig()
 
-    pipeline = TireAnnotationPipeline(
-        config=cfg.annotation_pipeline_config
-    )
+    pipeline = TireAnnotationPipeline(config=cfg.annotation_pipeline_config)
 
     input_names = list(map(lambda x: x.stem, input_dir.iterdir()))
     input_names.sort()
@@ -176,8 +177,12 @@ async def main():
         gt_data_raw = read_json(gt_path)
 
         gt_data_raw = {
-            "model": int(gt_data_raw["model"]) if gt_data_raw["model"] is not None else None,
-            "brand": int(gt_data_raw["brand"]) if gt_data_raw["brand"] is not None else None,
+            "model": int(gt_data_raw["model"])
+            if gt_data_raw["model"] is not None
+            else None,
+            "brand": int(gt_data_raw["brand"])
+            if gt_data_raw["brand"] is not None
+            else None,
         }
 
         if gt_data_raw["model"] is None or gt_data_raw["brand"] is None:
@@ -259,7 +264,9 @@ async def main():
         print("\nMean metrics:")
         print(df.select(pl.exclude("name", "raw_output")).mean())
 
-        output_path = Path(args.output_json) if args.output_json else Path("ocr_results.json")
+        output_path = (
+            Path(args.output_json) if args.output_json else Path("ocr_results.json")
+        )
         with open(output_path, "w") as f:
             json.dump(all_results, f)
 

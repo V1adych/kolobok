@@ -5,6 +5,15 @@ import multiprocessing
 
 import onnxruntime as ort
 
+from tire_vision.options import (
+    ThreadSegmentatorOptions,
+    StudPipelineOptions,
+    SidewallSegmentatorOptions,
+    SidewallUnwrapperOptions,
+    OCROptions,
+    IndexOptions,
+)
+
 
 DEVICE = "cpu"
 
@@ -87,62 +96,47 @@ ort_providers = ["CPUExecutionProvider"]
 @dataclass(frozen=True)
 class ThreadSegmentatorConfig:
     thread_segmentator_onnx: str = "onnx/thread_segmentator.onnx"
-
-    confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
-    padding_frac: float = 0.01
-    min_tire_pixels: int = 96
+    options: ThreadSegmentatorOptions = ThreadSegmentatorOptions()
 
 
 @dataclass(frozen=True)
-class SpikePipelineConfig:
+class StudPipelineConfig:
     spike_detector_onnx: str = "onnx/spike_detector.onnx"
-    max_detections: int = 300
     resize_shape: Tuple[int, int] = (560, 560)
-    nms_iou_threshold: float = 0.15
-    confidence_threshold: float = 0.25
+    options: StudPipelineOptions = StudPipelineOptions()
+
 
 @dataclass(frozen=True)
 class DepthRegressorConfig:
     depth_regressor_onnx: str = "onnx/depth_regressor.onnx"
-
     resize_shape: Tuple[int, int] = (512, 512)
 
 
 @dataclass(frozen=True)
 class SidewallSegmentatorConfig:
     sidewall_segmentator_onnx: str = "onnx/sidewall_segmentator.onnx"
-
-    confidence_threshold: float = 0.5
     resize_shape: Tuple[int, int] = (512, 512)
+    options: SidewallSegmentatorOptions = SidewallSegmentatorOptions()
 
 
 @dataclass(frozen=True)
 class SidewallUnwrapperConfig:
     clahe_clip_limit: float = 2.0
     clahe_tile_grid_size: Tuple[int, int] = (8, 8)
-
     rectify_aspect_ratio_threshold: float = 1.1
-    polar_dsize: Tuple[int, int] = (1000, 2500)
     mask_postprocess_ksize: int = 21
     concat_strip: bool = True
+    options: SidewallUnwrapperOptions = SidewallUnwrapperOptions()
 
 
 @dataclass(frozen=True)
 class OCRConfig:
-    model_name: str = "qwen/qwen3-vl-32b-instruct"
     base_url: str = "https://openrouter.ai/api/v1"
     api_key: str = os.environ["OPENROUTER_API_KEY"]
-    providers_list: List[str] = field(default_factory=lambda: ["parasail"])
-
     system_prompt: str = SYSTEM_OCR_PROMPT
     prompt: str = OCR_PROMPT
-
-    top_p: float = 0.95
-    temperature: float = 0.7
-    presence_penalty: float = 0
-    frequency_penalty: float = 0
-    max_completion_tokens: int = 1024
+    options: OCROptions = OCROptions()
 
 
 @dataclass(frozen=True)
@@ -152,26 +146,10 @@ class IndexConfig:
     db_name: str = os.environ["MYSQL_DATABASE"]
     db_user: str = "root"
     db_password: str = os.environ["MYSQL_ROOT_PASSWORD"]
-
     table_name: str = "models"
-
     table_cache_path: str = "models.parquet"
     table_cache_ttl_seconds: int = float("inf")
-
-    max_query_results: int = 10
-    max_brand_matches: int = 20
-    max_model_matches: int = 50
-    max_distinct_matches: int = 3
-    brand_model_match_bonus: float = 0.1
-
-    similarity_metric: Literal["levenshtein", "jaro_winkler"] = "jaro_winkler"
-    comb_metric: Literal[
-        "product",
-        "arithmetic_mean",
-        "harmonic_mean",
-        "geometric_mean",
-        "euclidean",
-    ] = "arithmetic_mean"
+    options: IndexOptions = IndexOptions()
 
 
 @dataclass(frozen=True)
@@ -198,7 +176,7 @@ class TireAnnotationPipelineConfig:
 @dataclass(frozen=True)
 class TireThreadPipelineConfig:
     thread_segmentator_config: ThreadSegmentatorConfig = ThreadSegmentatorConfig()
-    spike_pipeline_config: SpikePipelineConfig = SpikePipelineConfig()
+    stud_pipeline_config: StudPipelineConfig = StudPipelineConfig()
     depth_regressor_config: DepthRegressorConfig = DepthRegressorConfig()
 
 
