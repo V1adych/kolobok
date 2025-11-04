@@ -100,7 +100,7 @@ class SpikePipelineConfig:
     max_detections: int = 300
     resize_shape: Tuple[int, int] = (560, 560)
     nms_iou_threshold: float = 0.15
-    confidence_threshold: float = 0.3
+    confidence_threshold: float = 0.25
 
 @dataclass(frozen=True)
 class DepthRegressorConfig:
