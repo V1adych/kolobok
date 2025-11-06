@@ -80,7 +80,11 @@ def extract_information(
 
     result = extract_tire_info(image, options=req.annotation_options)
 
-    return ExtractInformationResponse(**result)
+    return ExtractInformationResponse(
+        strings=result["strings"],
+        tire_size=result["tire_size"],
+        index_results=result["index_results"],
+    )
 
 
 @app.post("/api/v1/bin/analyze_thread", response_model=ThreadAnalysisResponse)
@@ -131,4 +135,8 @@ async def extract_information_bin(
 
     result = extract_tire_info(image_np, options=options)
 
-    return ExtractInformationResponse(**result)
+    return ExtractInformationResponse(
+        strings=result["strings"],
+        tire_size=result["tire_size"],
+        index_results=result["index_results"],
+    )

@@ -89,7 +89,7 @@ async def get_prediction(
         start_time = time.time()
         image_bytes = get_image_bytes(image)
         headers = {"Authorization": f"Bearer {token}"}
-        data = {"image": image_bytes, "model": "ocr"}
+        data = {"image": image_bytes, "annotation_options": {"ocr_options": {"model_name": "qwen/qwen3-vl-30b-a3b-instruct"}}}
         try:
             response = await client.post(
                 endpoint, json=data, headers=headers, timeout=timeout
@@ -119,9 +119,10 @@ async def get_prediction_v2(
         image_bytes = get_image_bytes_v2(image)
         headers = {"Authorization": f"Bearer {token}"}
         files = {"image": ("image.jpg", image_bytes, "image/jpeg")}
+        data = {"annotation_options": {"ocr_options": {"model_name": "qwen/qwen3-vl-30b-a3b-instruct"}}}
         try:
             response = await client.post(
-                endpoint, files=files, headers=headers, timeout=timeout
+                endpoint, files=files, headers=headers, timeout=timeout, data=data
             )
             response.raise_for_status()
             end_time = time.time()
@@ -138,12 +139,12 @@ async def get_prediction_v2(
 class Args:
     input_dir: str
     gt_dir: str
-    url: str = "http://localhost:8000/api/v1/bin/extract_information"
+    url: str = "http://localhost:8000/api/v1/extract_information"
     token: Optional[str] = None
     concurrency: int = 4
     limit: Optional[int] = None
     verify_ssl: bool = True
-    multipart: bool = True
+    multipart: bool = False
     timeout: float = 30.0
     output_json: Optional[str] = "ocr_results.json"
 
@@ -220,14 +221,14 @@ async def main():
         token: str,
         semaphore: asyncio.Semaphore,
     ):
-        if args.multipart:
-            output, exec_time = await get_prediction_v2(
-                client, image, endpoint, token, semaphore, args.timeout
-            )
-        else:
-            output, exec_time = await get_prediction(
-                client, image, endpoint, token, semaphore, args.timeout
-            )
+        # if args.multipart:
+        #     output, exec_time = await get_prediction_v2(
+        #         client, image, endpoint, token, semaphore, args.timeout
+        #     )
+        # else:
+        output, exec_time = await get_prediction(
+            client, image, endpoint, token, semaphore, args.timeout
+        )
 
         if output is None:
             return None
