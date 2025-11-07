@@ -2,28 +2,31 @@ import base64
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from dataclasses import replace, dataclass
 from PIL import Image
 import io
 from traceback import format_exc
 import re
 
 import numpy as np
-from openai import OpenAI, AsyncOpenAI
+from openai import OpenAI, APIStatusError
+from fastapi import HTTPException
 from tire_vision.config import OCRConfig
 from tire_vision.options import OCROptions
-from dataclasses import replace
 
 import logging
+
+
+@dataclass
+class OCRResult:
+    strings: List[str]
+    tire_size: str
 
 
 class OCRPipeline:
     def __init__(self, config: OCRConfig):
         self.config = config
         self.client = OpenAI(
-            base_url=self.config.base_url,
-            api_key=self.config.api_key,
-        )
-        self.async_client = AsyncOpenAI(
             base_url=self.config.base_url,
             api_key=self.config.api_key,
         )
@@ -38,22 +41,26 @@ class OCRPipeline:
         images: List[np.ndarray],
         prompt: str,
         options: Optional[OCROptions] = None,
-    ) -> Dict[str, List[str]]:
+    ) -> OCRResult:
         file_inputs = [self._prepare_image(img) for img in images]
         if options is not None:
             self.config = replace(self.config, options=options)
 
+        user_prompt = self._build_user_prompt(prompt)
         try:
-            user_prompt = self._build_user_prompt(prompt)
-            result = self._get_llm_response(file_inputs, user_prompt)
-            tire_info = self._parse_llm_response(result)
-            return tire_info
-        except Exception:
+            response_text = self._get_llm_response(file_inputs, user_prompt)
+        except APIStatusError as e:
             self.logger.error(format_exc())
-            self.logger.error(
-                "Error during OCR processing. Falling back to default values"
-            )
-            return self._get_default_response()
+            detail = str(e.body)
+            if e.body and "error" in e.body and isinstance(e.body["error"], dict) and "message" in e.body["error"]:
+                detail = e.body["error"]["message"]
+            raise HTTPException(status_code=e.status_code, detail=f"OCR provider error: {detail}")
+        except Exception as e:
+            self.logger.error(format_exc())
+            raise HTTPException(status_code=500, detail=f"OCR returned unexpected error: {e}")
+
+        tire_info = self._parse_llm_response(response_text)
+        return tire_info
 
     def __call__(
         self,
@@ -115,49 +122,29 @@ class OCRPipeline:
         )
 
         if self.config.options.providers_list:
-            params["extra_body"] = {
-                "provider": {"only": self.config.options.providers_list}
-            }
+            params["extra_body"] = {"provider": {"only": self.config.options.providers_list}}
 
         return params
 
-    def _get_llm_response(self, file_inputs: List[str], user_prompt: str) -> str:
+    def _get_llm_response(self, file_inputs: List[str], user_prompt: str) -> Optional[str]:
         messages = self._build_messages(file_inputs, user_prompt)
 
-        response = self.client.chat.completions.create(
-            **self._get_request_kwargs(messages)
-        )
+        response = self.client.chat.completions.create(**self._get_request_kwargs(messages))
+        response_text = response.choices[0].message.content
+        self.logger.info(f"OCR response: {response_text}")
 
-        result = response.choices[0].message.content
-        self.logger.info(f"LLM response: {result}")
-        return result
+        return response_text
 
-    async def _async_get_llm_response(
-        self, file_inputs: List[str], user_prompt: str
-    ) -> str:
-        messages = self._build_messages(file_inputs, user_prompt)
-
-        response = await self.async_client.chat.completions.create(
-            **self._get_request_kwargs(messages)
-        )
-
-        result = response.choices[0].message.content
-        self.logger.info(f"LLM response: {result}")
-        return result
-
-    def _parse_llm_response(self, result: str) -> Dict[str, list[str]]:
-        match = re.search(r"\{.*\}", result, flags=re.DOTALL)
+    def _parse_llm_response(self, response: str) -> OCRResult:
+        match = re.search(r"\{.*\}", response, flags=re.DOTALL)
+        error_detail = f"OCR response is not valid: {response}"
         if not match:
-            raise ValueError("No JSON object found in LLM response")
+            raise HTTPException(status_code=502, detail=error_detail)
         json_str = match.group(0)
         tire_info = json.loads(json_str)
         self.logger.info(f"Parsed OCR result: {tire_info}")
 
-        return {
-            "strings": tire_info.get("strings", []),
-            "tire_size": tire_info.get("tire_size", ""),
-        }
+        if "strings" not in tire_info or "tire_size" not in tire_info:
+            raise HTTPException(status_code=502, detail=error_detail)
 
-    def _get_default_response(self) -> Dict[str, list[str]]:
-        self.logger.info("Falling back to default values")
-        return {"strings": [], "tire_size": ""}
+        return OCRResult(strings=tire_info["strings"], tire_size=tire_info["tire_size"])

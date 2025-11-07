@@ -10,7 +10,7 @@ from fastapi import Form, Security, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from tire_vision.thread.pipeline import TireThreadPipeline
-from tire_vision.text.pipeline import TireAnnotationPipeline
+from tire_vision.text.pipeline import TireAnnotationPipeline, AnnotationResult
 from tire_vision.config import TireVisionConfig, CLASS_COLORS, CLASS_MAPPING
 from tire_vision.options import TireThreadPipelineOptions, TireAnnotationPipelineOptions
 
@@ -84,7 +84,7 @@ def get_thread_stats(
 @log_wrapper
 def extract_tire_info(
     image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None
-) -> Dict[str, Any]:
+) -> AnnotationResult:
     result = annotation_pipeline(image, options=options)
 
     return result

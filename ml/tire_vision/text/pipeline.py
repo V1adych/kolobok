@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, Callable, List, Tuple
+from dataclasses import dataclass
 import time
-from traceback import format_exc
 import json
 import re
 
@@ -9,8 +9,8 @@ import cv2
 
 from tire_vision.text.preprocessor.model import SidewallSegmentator
 from tire_vision.text.preprocessor.unwrapper import SidewallUnwrapper
-from tire_vision.text.ocr.pipeline import OCRPipeline
-from tire_vision.text.index.pipeline import IndexPipeline
+from tire_vision.text.ocr.pipeline import OCRPipeline, OCRResult
+from tire_vision.text.index.pipeline import IndexPipeline, IndexResult
 from tire_vision.config import TireAnnotationPipelineConfig
 from tire_vision.options import TireAnnotationPipelineOptions
 
@@ -20,6 +20,11 @@ import logging
 def _json_format(data):
     return json.dumps(data, indent=4)
 
+@dataclass
+class AnnotationResult:
+    strings: List[str]
+    tire_size: str
+    index_results: List[IndexResult]
 
 class TireAnnotationPipeline:
     def __init__(self, config: TireAnnotationPipelineConfig):
@@ -51,29 +56,25 @@ class TireAnnotationPipeline:
         unwrapped_image: Optional[np.ndarray] = None
 
         self.logger.info("Running SidewallSegmentator and SidewallUnwrapper")
-        try:
-            self.logger.info("Running TireDetector")
-            tire_mask = self.detector(
-                image,
-                options=(
-                    options.sidewall_segmentator_options
-                    if options is not None
-                    else None
-                ),
-            )
-            self.logger.info(f"TireDetector result shape: {tire_mask.shape}")
-            unwrapped_image = self.unwrapper(
-                image,
-                tire_mask,
-                options=(
-                    options.sidewall_unwrapper_options if options is not None else None
-                ),
-            )
-            unwrap_success = True
 
-        except Exception:
-            self.logger.error(format_exc())
-            self.logger.error("Error unwrapping tire. Falling back to original image")
+        self.logger.info("Running TireDetector")
+        tire_mask = self.detector(
+            image,
+            options=(
+                options.sidewall_segmentator_options
+                if options is not None
+                else None
+            ),
+        )
+        self.logger.info(f"TireDetector result shape: {tire_mask.shape}")
+        unwrapped_image = self.unwrapper(
+            image,
+            tire_mask,
+            options=(
+                options.sidewall_unwrapper_options if options is not None else None
+            ),
+        )
+        unwrap_success = True
 
         self.logger.info(
             f"Original image shape: {image.shape}, unwrapped image shape: {getattr(unwrapped_image, 'shape', None)}"
@@ -93,24 +94,24 @@ class TireAnnotationPipeline:
         )
         ocr_result = self._postprocess_ocr_result(ocr_result)
         self.logger.info("OCRPipeline result:")
-        self.logger.info(f"strings: {ocr_result['strings']}")
-        self.logger.info(f"tire_size: {ocr_result['tire_size']}")
+        self.logger.info(f"strings: {ocr_result.strings}")
+        self.logger.info(f"tire_size: {ocr_result.tire_size}")
 
         self.logger.info("Running IndexPipeline")
         index_results = self.index(
-            ocr_result["strings"],
+            ocr_result.strings,
             options=(options.index_options if options is not None else None),
         )
         self.logger.info("IndexPipeline results:")
         self.logger.info(
-            f"(brand, model, score): {[(r['brand_name'], r['model_name'], round(r['combined_score'], 2)) for r in index_results]}"
+            f"(brand, model, score): {[(r.brand_name, r.model_name, round(r.combined_score, 2)) for r in index_results]}"
         )
 
-        combined_result = {
-            "strings": ocr_result["strings"],
-            "tire_size": ocr_result["tire_size"],
-            "index_results": index_results,
-        }
+        combined_result = AnnotationResult(
+            strings=ocr_result.strings,
+            tire_size=ocr_result.tire_size,
+            index_results=index_results,
+        )
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"TireAnnotationPipeline completed in {latency:.4f} seconds")
@@ -126,16 +127,16 @@ class TireAnnotationPipeline:
         ]
         return list(dict.fromkeys(matches))
 
-    def _postprocess_ocr_result(self, ocr_result: Dict[str, Any]) -> Dict[str, Any]:
-        matches = self._get_tire_size_matches(ocr_result["strings"])
+    def _postprocess_ocr_result(self, ocr_result: OCRResult) -> OCRResult:
+        matches = self._get_tire_size_matches(ocr_result.strings)
         if matches:
             matched_strings, matched_patterns = zip(*matches)
-            ocr_result["strings"] = list(
-                set(ocr_result["strings"]) - set(matched_strings)
+            ocr_result.strings = list(
+                set(ocr_result.strings) - set(matched_strings)
             )
 
-            if not ocr_result["tire_size"]:
-                ocr_result["tire_size"] = matched_patterns[0]
+            if not ocr_result.tire_size:
+                ocr_result.tire_size = matched_patterns[0]
 
         return ocr_result
 

@@ -146,7 +146,7 @@ class Args:
     verify_ssl: bool = True
     multipart: bool = False
     timeout: float = 30.0
-    output_json: Optional[str] = "ocr_results.json"
+    output_json: Optional[str] = None
 
 
 async def main():
@@ -221,14 +221,14 @@ async def main():
         token: str,
         semaphore: asyncio.Semaphore,
     ):
-        # if args.multipart:
-        #     output, exec_time = await get_prediction_v2(
-        #         client, image, endpoint, token, semaphore, args.timeout
-        #     )
-        # else:
-        output, exec_time = await get_prediction(
-            client, image, endpoint, token, semaphore, args.timeout
-        )
+        if args.multipart:
+            output, exec_time = await get_prediction_v2(
+                client, image, endpoint, token, semaphore, args.timeout
+            )
+        else:
+            output, exec_time = await get_prediction(
+                client, image, endpoint, token, semaphore, args.timeout
+            )
 
         if output is None:
             return None
