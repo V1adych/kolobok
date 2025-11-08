@@ -35,14 +35,10 @@ def get_image_base64(image_path: str) -> str:
 
 def get_predictions(url: str, image_path: str, token: str) -> List[Dict]:
     image_base64 = get_image_base64(image_path)
-    response = requests.post(
-        url, json={"image": image_base64}, headers={"Authorization": f"Bearer {token}"}
-    )
+    response = requests.post(url, json={"image": image_base64}, headers={"Authorization": f"Bearer {token}"})
 
     if response.status_code != 200:
-        logging.error(
-            f"Error getting predictions for {image_path}: {response.status_code}"
-        )
+        logging.error(f"Error getting predictions for {image_path}: {response.status_code}")
         return None
 
     return response.json()
@@ -167,9 +163,7 @@ def main():
         # print(boxes_pred)
         # print(boxes_annot)
 
-        metrics = calculate_metrics(
-            boxes_pred, labels_pred, boxes_annot, labels_annot, args.iou_threshold
-        )
+        metrics = calculate_metrics(boxes_pred, labels_pred, boxes_annot, labels_annot, args.iou_threshold)
         if args.img_save_dir is not None:
             img_save_path = Path(args.img_save_dir) / f"{image_id}.png"
             img_save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -181,9 +175,7 @@ def main():
     df = pl.DataFrame(all_metrics)
     print(df)
     df.write_csv("metrics.csv")
-    print(
-        df.select("det_tp", "det_fp", "det_fn", "cls_correct", "cls_incorrect").mean()
-    )
+    print(df.select("det_tp", "det_fp", "det_fn", "cls_correct", "cls_incorrect").mean())
 
 
 if __name__ == "__main__":

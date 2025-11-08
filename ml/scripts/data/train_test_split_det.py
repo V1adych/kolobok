@@ -49,9 +49,7 @@ def main():
 
         pairs.append((image_path, annot_path))
 
-    train_pairs, val_pairs = train_test_split(
-        pairs, test_size=args.test_size, random_state=42
-    )
+    train_pairs, val_pairs = train_test_split(pairs, test_size=args.test_size, random_state=42)
 
     for image_path, annot_path in train_pairs:
         shutil.copy(image_path, dest_images_train / image_path.name)

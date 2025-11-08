@@ -39,9 +39,7 @@ def main():
 
         annots = item["annotations"][-1]["result"]
 
-        tire_annot = list(
-            filter(lambda x: x["value"]["polygonlabels"][0] == args.tire_name, annots)
-        )[-1]
+        tire_annot = list(filter(lambda x: x["value"]["polygonlabels"][0] == args.tire_name, annots))[-1]
         # rim_annot = list(
         #     filter(lambda x: x["value"]["polygonlabels"][0] == args.rim_name, annots)
         # )[-1]

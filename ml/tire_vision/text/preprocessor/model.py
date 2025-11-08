@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 import time
 
@@ -21,24 +22,16 @@ class SidewallSegmentator:
 
         self.logger.info("SidewallSegmentator initialized successfully")
 
-    def forward(
-        self, image: np.ndarray, options: SidewallSegmentatorOptions | None = None
-    ):
+    def forward(self, image: np.ndarray, options: Optional[SidewallSegmentatorOptions] = None):
         start_time = time.perf_counter()
         if options is not None:
             self.config = replace(self.config, options=options)
-        mask = self.segmentator(
-            image, threshold=self.config.options.confidence_threshold
-        )
+        mask = self.segmentator(image, threshold=self.config.options.confidence_threshold)
 
         end_time = time.perf_counter()
-        self.logger.info(
-            f"Completed sidewall segmentation in {end_time - start_time} seconds"
-        )
+        self.logger.info(f"Completed sidewall segmentation in {end_time - start_time} seconds")
 
         return mask
 
-    def __call__(
-        self, image: np.ndarray, options: SidewallSegmentatorOptions | None = None
-    ):
+    def __call__(self, image: np.ndarray, options: Optional[SidewallSegmentatorOptions] = None):
         return self.forward(image, options=options)

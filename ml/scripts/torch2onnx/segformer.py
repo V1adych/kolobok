@@ -9,9 +9,7 @@ from torch import nn
 from transformers import SegformerConfig, SegformerForSemanticSegmentation
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("torch2onnx")
 
 
@@ -32,8 +30,7 @@ def load_checkpoint(ckpt_path: str, pl_prefix: str = "model."):
 
     if "state_dict" in state_dict:
         state_dict = {
-            k[len(pl_prefix) :] if k.startswith(pl_prefix) else k: v
-            for k, v in state_dict["state_dict"].items()
+            k[len(pl_prefix) :] if k.startswith(pl_prefix) else k: v for k, v in state_dict["state_dict"].items()
         }
 
     return state_dict

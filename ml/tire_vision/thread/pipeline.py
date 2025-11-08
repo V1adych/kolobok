@@ -21,18 +21,12 @@ class TireThreadPipeline:
 
         self.logger = logging.getLogger("tire_thread_pipeline")
 
-    def __call__(
-        self, image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None
-    ) -> Dict[str, Any]:
+    def __call__(self, image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None) -> Dict[str, Any]:
         self.logger.info("Starting tire thread pipeline")
         start_time = time.perf_counter()
         if options is not None:
-            self.segmentator.config = replace(
-                self.segmentator.config, options=options.thread_segmentator_options
-            )
-            self.stud_pipeline.config = replace(
-                self.stud_pipeline.config, options=options.stud_pipeline_options
-            )
+            self.segmentator.config = replace(self.segmentator.config, options=options.thread_segmentator_options)
+            self.stud_pipeline.config = replace(self.stud_pipeline.config, options=options.stud_pipeline_options)
 
         cropped_image = self.segmentator.crop_tire(image)
         if cropped_image is None:
@@ -55,10 +49,6 @@ class TireThreadPipeline:
             "studs": studs,
         }
 
-        self.logger.info(
-            f"Cropped image shape: {cropped_image.shape} "
-            f"Depth: {depth} "
-            f"Number of studs: {len(studs)}"
-        )
+        self.logger.info(f"Cropped image shape: {cropped_image.shape} Depth: {depth} Number of studs: {len(studs)}")
 
         return result

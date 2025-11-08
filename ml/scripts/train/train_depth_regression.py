@@ -78,9 +78,7 @@ class ThreadDepthDataset(Dataset):
 def build_transforms(size: int, do_aug: bool) -> transforms.Compose:
     base = [
         lambda x: x / 255.0,
-        transforms.Resize(
-            (size, size), interpolation=transforms.InterpolationMode.BILINEAR
-        ),
+        transforms.Resize((size, size), interpolation=transforms.InterpolationMode.BILINEAR),
     ]
     aug = [
         transforms.RandomHorizontalFlip(),
@@ -109,9 +107,7 @@ def get_model(model_name: str) -> nn.Module:
         model.classifier = nn.Linear(2560, 1)
     elif model_name == "swin_v2_t":
         model = swin_v2_t(weights=Swin_V2_T_Weights.IMAGENET1K_V1)
-        model.features[0][0] = nn.Conv2d(
-            in_channels=3, out_channels=96, kernel_size=(5, 5), stride=(2, 2)
-        )
+        model.features[0][0] = nn.Conv2d(in_channels=3, out_channels=96, kernel_size=(5, 5), stride=(2, 2))
         model.head = nn.Linear(768, 1)
     elif model_name == "densenet201":
         model = densenet201(weights=DenseNet201_Weights.IMAGENET1K_V1)
@@ -155,9 +151,7 @@ class DepthRegressionModule(pl.LightningModule):
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_mae", mae, on_step=False, on_epoch=True, prog_bar=True)
-        self.log(
-            "train_frac_le1", frac_le1, on_step=False, on_epoch=True, prog_bar=True
-        )
+        self.log("train_frac_le1", frac_le1, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -208,10 +202,7 @@ def main():
 
     module = DepthRegressionModule(args)
 
-    ckpt_dir = (
-        Path(args.ckpt_dir)
-        / f"checkpoints-{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
-    )
+    ckpt_dir = Path(args.ckpt_dir) / f"checkpoints-{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(

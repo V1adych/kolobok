@@ -1,11 +1,12 @@
+from dataclasses import replace
 from typing import Optional
 
 import numpy as np
 import cv2
+from fastapi import HTTPException
 
 from tire_vision.config import SidewallUnwrapperConfig
 from tire_vision.options import SidewallUnwrapperOptions
-from dataclasses import replace
 
 
 class SidewallUnwrapper:
@@ -18,9 +19,7 @@ class SidewallUnwrapper:
 
     def _postprocess_mask(self, mask: np.ndarray):
         kernel_size = self.config.mask_postprocess_ksize
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (kernel_size, kernel_size)
-        )
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
         processed_mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         processed_mask = cv2.morphologyEx(processed_mask, cv2.MORPH_OPEN, kernel)
 
@@ -34,8 +33,12 @@ class SidewallUnwrapper:
     def _ellipse_params_from_mask(self, mask_cc):
         cnts, _ = cv2.findContours(mask_cc, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if not cnts:
-            raise RuntimeError("no contour")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to find full sidewall on the image. Make sure you are providing an entire sidewall ring",
+            )
         cnt = max(cnts, key=cv2.contourArea)
+
         return cv2.fitEllipse(cnt)
 
     def get_unwrapped_tire(
@@ -48,26 +51,23 @@ class SidewallUnwrapper:
         if options is not None:
             self.config = replace(self.config, options=options)
         mask_cc = self._postprocess_mask(mask)
-        (cx, cy), (MA, ma), angle = self._ellipse_params_from_mask(mask_cc)
-        cx, cy, MA, ma = float(cx), float(cy), float(MA), float(ma)
-        r_minor = ma / 2.0
+        (x, y), (major_axis, minor_axis), angle = self._ellipse_params_from_mask(mask_cc)
+        r_minor = minor_axis / 2.0
 
-        do_rectify = (MA / ma) > self.config.rectify_aspect_ratio_threshold
+        do_rectify = (major_axis / minor_axis) > self.config.rectify_aspect_ratio_threshold
 
         if do_rectify:
-            M_rot = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
-            image = cv2.warpAffine(image, M_rot, (w, h), flags=cv2.INTER_CUBIC)
+            rot = cv2.getRotationMatrix2D((x, y), angle, 1.0)
+            image = cv2.warpAffine(image, rot, (w, h), flags=cv2.INTER_CUBIC)
 
-            scale_y = ma / MA
-            M_scale = np.array(
-                [[1, 0, 0], [0, scale_y, cy * (1 - scale_y)]], dtype=np.float32
-            )
-            image = cv2.warpAffine(image, M_scale, (w, h), flags=cv2.INTER_CUBIC)
+            scale_y = minor_axis / major_axis
+            scale = np.array([[1, 0, 0], [0, scale_y, y * (1 - scale_y)]], dtype=np.float32)
+            image = cv2.warpAffine(image, scale, (w, h), flags=cv2.INTER_CUBIC)
 
         polar_image = cv2.warpPolar(
             image,
             self.config.options.polar_unwrap_size,
-            (cx, cy),
+            (x, y),
             r_minor,
             flags=cv2.INTER_CUBIC,
         )
@@ -75,10 +75,8 @@ class SidewallUnwrapper:
         polar_image = cv2.rotate(polar_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
         if self.config.concat_strip:
-            _, w, c = polar_image.shape
-            strip_slide = np.concatenate(
-                [polar_image[:, w // 2 :], polar_image[:, : w // 2]], axis=1
-            )
+            _, w, _ = polar_image.shape
+            strip_slide = np.concatenate([polar_image[:, w // 2 :], polar_image[:, : w // 2]], axis=1)
             polar_image = np.concatenate([polar_image, strip_slide], axis=0)
 
         lab_image = cv2.cvtColor(polar_image, cv2.COLOR_RGB2LAB)
@@ -90,7 +88,7 @@ class SidewallUnwrapper:
         self,
         image: np.ndarray,
         mask: np.ndarray,
-        options: SidewallUnwrapperOptions | None = None,
+        options: Optional[SidewallUnwrapperOptions] = None,
     ):
         return self.get_unwrapped_tire(image, mask, options=options)
 
@@ -98,6 +96,6 @@ class SidewallUnwrapper:
         self,
         image: np.ndarray,
         mask: np.ndarray,
-        options: SidewallUnwrapperOptions | None = None,
+        options: Optional[SidewallUnwrapperOptions] = None,
     ):
         return self.forward(image, mask, options=options)

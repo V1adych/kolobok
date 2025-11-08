@@ -21,9 +21,7 @@ class AnnotationImageRequest(BaseModel):
     image: str = Field(description="base64 encoded image")
     annotation_options: Optional[TireAnnotationPipelineOptions] = Field(
         None,
-        description=(
-            "OCR and index options (model_name, temperature, top_p; result limits)."
-        ),
+        description=("OCR and index options (model_name, temperature, top_p; result limits)."),
     )
 
 
@@ -58,11 +56,15 @@ class IndexResult(BaseModel):
     model_id: int = Field(description="id of a tire model in the database")
     model_name: str = Field(description="Name of the tire model (exact match from the database)")
     candidate_model_name: str = Field(description="Name of the tire model (raw OCR result)")
-    candidate_model_score: float = Field(description="Similarity score between the raw OCR result and the exact match from the database")
+    candidate_model_score: float = Field(
+        description="Similarity score between the raw OCR result and the exact match from the database"
+    )
     brand_id: int = Field(description="id of a tire brand in the database")
     brand_name: str = Field(description="Name of the tire brand (exact match from the database)")
     candidate_brand_name: str = Field(description="Name of the tire brand (raw OCR result)")
-    candidate_brand_score: float = Field(description="Similarity score between the raw OCR result and the exact match from the database")
+    candidate_brand_score: float = Field(
+        description="Similarity score between the raw OCR result and the exact match from the database"
+    )
     combined_score: float = Field(description="Combined similarity score of the model and the brand")
 
 

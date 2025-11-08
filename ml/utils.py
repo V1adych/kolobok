@@ -71,9 +71,7 @@ def verify_token(
 
 
 @log_wrapper
-def get_thread_stats(
-    image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None
-) -> Dict[str, Any]:
+def get_thread_stats(image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None) -> Dict[str, Any]:
     result = thread_pipeline(image, options=options)
     for i in range(len(result["studs"])):
         result["studs"][i]["label"] = CLASS_MAPPING[result["studs"][i]["class"]]
@@ -82,9 +80,7 @@ def get_thread_stats(
 
 
 @log_wrapper
-def extract_tire_info(
-    image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None
-) -> AnnotationResult:
+def extract_tire_info(image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None) -> AnnotationResult:
     result = annotation_pipeline(image, options=options)
 
     return result
@@ -95,9 +91,7 @@ def add_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.
     for annotation in annotations:
         x, y, w, h = annotation["box"]
         color = CLASS_COLORS[annotation["class"]]
-        cv2.rectangle(
-            image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), color, 2
-        )
+        cv2.rectangle(image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), color, 2)
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
@@ -119,3 +113,9 @@ def validate_image_bytes(image_bytes: bytes) -> None:
         img.verify()
     except (UnidentifiedImageError, OSError):
         raise HTTPException(status_code=400, detail="Image is corrupted or not valid")
+
+
+def numpy_to_base64(image: np.ndarray) -> str:
+    buffered = io.BytesIO()
+    Image.fromarray(image).save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")

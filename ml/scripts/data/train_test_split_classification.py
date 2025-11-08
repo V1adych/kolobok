@@ -34,9 +34,7 @@ def main():
     dest_images_train.mkdir(parents=True, exist_ok=True)
     dest_images_val.mkdir(parents=True, exist_ok=True)
 
-    train_df, val_df = train_test_split(
-        src_df, test_size=args.test_size, random_state=42
-    )
+    train_df, val_df = train_test_split(src_df, test_size=args.test_size, random_state=42)
 
     train_df.to_csv(dest_df_train, index=False)
     val_df.to_csv(dest_df_val, index=False)

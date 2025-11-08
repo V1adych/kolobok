@@ -54,9 +54,7 @@ class LogsMgr:
             Key=path,
         )
 
-    def upload_log(
-        self, image: np.ndarray, json_data: Dict[str, Any], metadata: str = ""
-    ):
+    def upload_log(self, image: np.ndarray, json_data: Dict[str, Any], metadata: str = ""):
         cur_time = datetime.datetime.now().isoformat()
         directory = self.prefix / cur_time
         self.logger.info(f"Uploading log to {directory}")
@@ -69,8 +67,6 @@ class LogsMgr:
         self._upload_json(json_data, json_path)
         self._upload_txt(metadata, metadata_path)
 
-        log_path = (
-            f"{self.config.endpoint_url}/{self.bucket_name}/{self.prefix}/{cur_time}"
-        )
+        log_path = f"{self.config.endpoint_url}/{self.bucket_name}/{self.prefix}/{cur_time}"
 
         self.logger.info(f"Log uploaded to {log_path}")

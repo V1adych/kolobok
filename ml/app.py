@@ -21,6 +21,7 @@ from utils import (
     verify_token,
     validate_image,
     validate_image_bytes,
+    numpy_to_base64,
 )
 from perf import get_perf_logger
 from tire_vision.options import TireThreadPipelineOptions, TireAnnotationPipelineOptions
@@ -47,19 +48,14 @@ def analyze_thread(
 ):
     validate_image(req.image)
 
-    image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
+    image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))).convert("RGB"))
     result = get_thread_stats(image, options=req.thread_options)
     if result["success"] == 0:
-        raise HTTPException(
-            status_code=400, detail="Tire not found on the image, or it is too small"
-        )
+        raise HTTPException(status_code=400, detail="Tire not found on the image, or it is too small")
 
     image_with_annotations = add_annotations(result["vis_image"], result["studs"])
 
-    pil_image = Image.fromarray(image_with_annotations)
-    buffered = io.BytesIO()
-    pil_image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    img_str = numpy_to_base64(image_with_annotations)
 
     return ThreadAnalysisResponse(
         thread_depth=result["depth"],
@@ -76,7 +72,7 @@ def extract_information(
 ):
     validate_image(req.image)
 
-    image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))))
+    image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))).convert("RGB"))
 
     result = extract_tire_info(image, options=req.annotation_options)
 
@@ -97,20 +93,15 @@ async def analyze_thread_bin(
     contents = await image.read()
     validate_image_bytes(contents)
 
-    image_np = np.array(Image.open(io.BytesIO(contents)))
+    image_np = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
     result = get_thread_stats(image_np, options=options)
     if result["success"] == 0:
-        raise HTTPException(
-            status_code=400, detail="Tire not found on the image, or it is too small"
-        )
+        raise HTTPException(status_code=400, detail="Tire not found on the image, or it is too small")
 
     image_with_annotations = add_annotations(result["vis_image"], result["studs"])
     logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
 
-    pil_image = Image.fromarray(image_with_annotations)
-    buffered = io.BytesIO()
-    pil_image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    img_str = numpy_to_base64(image_with_annotations)
 
     return ThreadAnalysisResponse(
         thread_depth=result["depth"],
@@ -123,15 +114,13 @@ async def analyze_thread_bin(
 @get_perf_logger(logger, async_mode=True)
 async def extract_information_bin(
     image: UploadFile = File(...),
-    options: Optional[TireAnnotationPipelineOptions] = Depends(
-        parse_annotation_options
-    ),
+    options: Optional[TireAnnotationPipelineOptions] = Depends(parse_annotation_options),
     token: str = Depends(verify_token),
 ):
     contents = await image.read()
     validate_image_bytes(contents)
 
-    image_np = np.array(Image.open(io.BytesIO(contents)))
+    image_np = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
 
     result = extract_tire_info(image_np, options=options)
 

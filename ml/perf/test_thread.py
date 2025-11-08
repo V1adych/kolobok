@@ -40,9 +40,7 @@ def get_image_base64(image_path: str) -> str:
     return img_base64
 
 
-async def test_request(
-    session: aiohttp.ClientSession, url: str, payload: dict, headers: dict = None
-) -> RequestResult:
+async def test_request(session: aiohttp.ClientSession, url: str, payload: dict, headers: dict = None) -> RequestResult:
     start = time.perf_counter()
     try:
         async with session.post(url, json=payload, headers=headers) as response:
@@ -58,9 +56,7 @@ async def test_request(
             )
     except Exception as e:
         end = time.perf_counter()
-        return RequestResult(
-            success=False, response_time=end - start, status_code=0, error=str(e)
-        )
+        return RequestResult(success=False, response_time=end - start, status_code=0, error=str(e))
 
 
 async def rate_limited_requests(
@@ -96,9 +92,7 @@ def print_statistics(results: List[RequestResult], total_time: float):
     successful_requests = sum(1 for r in results if r.success)
     failed_requests = total_requests - successful_requests
 
-    success_rate = (
-        (successful_requests / total_requests) * 100 if total_requests > 0 else 0
-    )
+    success_rate = (successful_requests / total_requests) * 100 if total_requests > 0 else 0
 
     # Response time statistics for successful requests
     successful_times = [r.response_time for r in results if r.success]
@@ -155,9 +149,7 @@ def print_statistics(results: List[RequestResult], total_time: float):
             if result.error:
                 print(f"  Error: {result.error}")
             if result.response_text:
-                print(
-                    f"  Response: {result.response_text[:500]}{'...' if len(result.response_text) > 500 else ''}"
-                )
+                print(f"  Response: {result.response_text[:500]}{'...' if len(result.response_text) > 500 else ''}")
             print("-" * 60)
 
     print("=" * 60)
@@ -205,9 +197,7 @@ async def main():
 
     # Execute requests
     async with aiohttp.ClientSession() as session:
-        results = await rate_limited_requests(
-            session, args.url, payloads, args.max_rps, headers
-        )
+        results = await rate_limited_requests(session, args.url, payloads, args.max_rps, headers)
 
     end_time = time.perf_counter()
     total_time = end_time - start_time

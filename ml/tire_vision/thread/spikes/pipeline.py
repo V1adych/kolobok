@@ -1,4 +1,5 @@
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
+from dataclasses import replace
 import time
 
 import numpy as np
@@ -7,7 +8,6 @@ import onnxruntime as ort
 
 from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts
 from tire_vision.options import StudPipelineOptions
-from dataclasses import replace
 
 
 import logging
@@ -91,14 +91,12 @@ class StudPipeline:
 
         self.logger.info("StudPipeline initialized successfully!")
 
-    def _global_topk(
-        self, boxes: np.ndarray, logits: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _global_topk(self, boxes: np.ndarray, logits: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         _, num_classes = logits.shape
         logits_flat = logits.reshape(-1)
-        topk_indices = np.argpartition(
-            logits_flat, -self.config.options.max_detections
-        )[-self.config.options.max_detections :]
+        topk_indices = np.argpartition(logits_flat, -self.config.options.max_detections)[
+            -self.config.options.max_detections :
+        ]
         logits_selected = logits_flat[topk_indices]
         ids = np.argsort(logits_selected)[::-1]
         logits_selected = logits_selected[ids]
@@ -124,18 +122,14 @@ class StudPipeline:
 
         return boxes[keep], scores[keep], labels[keep]
 
-    def __call__(
-        self, image: np.ndarray, options: StudPipelineOptions | None = None
-    ) -> List[Dict[str, Any]]:
+    def __call__(self, image: np.ndarray, options: Optional[StudPipelineOptions] = None) -> List[Dict[str, Any]]:
         start_time = time.perf_counter()
         if options is not None:
             self.config = replace(self.config, options=options)
 
         h, w, _ = image.shape
 
-        image = cv2.resize(
-            image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR
-        )
+        image = cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
         image = image.transpose(2, 0, 1)[None].astype(np.float32) / 255
 
         boxes_cxcywh, logits = self.det_session.run(None, {"input": image})

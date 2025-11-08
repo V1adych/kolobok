@@ -8,6 +8,7 @@ from tire_vision.config import IndexConfig
 from tire_vision.options import IndexOptions
 from models import IndexResult
 
+
 class IndexPipeline:
     def __init__(self, config: IndexConfig):
         self.config = config
@@ -15,9 +16,7 @@ class IndexPipeline:
         self.logger = logging.getLogger("tire_index_pipeline")
         self.logger.info("TireIndexPipeline initialized")
 
-    def __call__(
-        self, queries: List[str], options: Optional[IndexOptions] = None
-    ) -> List[IndexResult]:
+    def __call__(self, queries: List[str], options: Optional[IndexOptions] = None) -> List[IndexResult]:
         self.logger.info(f"Getting best matches for queries: {queries}")
         start_time = time.perf_counter()
         result = self.database.query(queries, options=options)

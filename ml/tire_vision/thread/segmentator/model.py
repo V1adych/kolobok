@@ -1,12 +1,14 @@
+from typing import Optional
+from dataclasses import replace
 import logging
 import time
 
 import numpy as np
 
+
 from tire_vision.config import ThreadSegmentatorConfig
 from tire_vision.segmentation.onnx import OnnxSegmentator
 from tire_vision.options import ThreadSegmentatorOptions
-from dataclasses import replace
 
 
 class ThreadSegmentator:
@@ -21,27 +23,19 @@ class ThreadSegmentator:
 
         self.logger.info("ThreadSegmentator initialized successfully")
 
-    def forward(
-        self, image: np.ndarray, options: ThreadSegmentatorOptions | None = None
-    ):
+    def forward(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None):
         start_time = time.perf_counter()
         if options is not None:
             self.config = replace(self.config, options=options)
 
-        mask = self.segmentator(
-            image, threshold=self.config.options.confidence_threshold
-        )
+        mask = self.segmentator(image, threshold=self.config.options.confidence_threshold)
 
         end_time = time.perf_counter()
-        self.logger.info(
-            f"Completed thread segmentation in {end_time - start_time} seconds"
-        )
+        self.logger.info(f"Completed thread segmentation in {end_time - start_time} seconds")
 
         return mask
 
-    def crop_tire(
-        self, image: np.ndarray, options: ThreadSegmentatorOptions | None = None
-    ):
+    def crop_tire(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None):
         self.logger.info("Cropping tire")
         if options is not None:
             self.config = replace(self.config, options=options)

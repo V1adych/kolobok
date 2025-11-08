@@ -33,12 +33,9 @@ class TireModelDatabase:
         )
 
         connection_url = (
-            f"mysql+pymysql://{config.db_user}:{config.db_password}@"
-            f"{config.db_host}:{config.db_port}/{config.db_name}"
+            f"mysql+pymysql://{config.db_user}:{config.db_password}@{config.db_host}:{config.db_port}/{config.db_name}"
         )
-        self.engine = create_engine(
-            connection_url, pool_pre_ping=True, pool_recycle=3600, echo=False
-        )
+        self.engine = create_engine(connection_url, pool_pre_ping=True, pool_recycle=3600, echo=False)
         self.session = sessionmaker(self.engine, expire_on_commit=False)
         self.last_table_update = -float("inf")
         self.table_path = Path(self.config.table_cache_path)
@@ -63,9 +60,7 @@ class TireModelDatabase:
         return list(
             map(
                 lambda x: (
-                    self._similarity_metrics[self.config.options.similarity_metric](
-                        name, x[1]
-                    ),
+                    self._similarity_metrics[self.config.options.similarity_metric](name, x[1]),
                     x[0],
                 ),
                 map(lambda x: (x, x.lower().strip()), queries),
@@ -80,12 +75,8 @@ class TireModelDatabase:
         brand_id: pl.Series,
     ) -> pl.Series:
         return (
-            self._comb_metrics[self.config.options.comb_metric](
-                model_score, brand_score
-            )
-            + pl.when(model_parent_id == brand_id)
-            .then(self.config.options.brand_model_match_bonus)
-            .otherwise(0)
+            self._comb_metrics[self.config.options.comb_metric](model_score, brand_score)
+            + pl.when(model_parent_id == brand_id).then(self.config.options.brand_model_match_bonus).otherwise(0)
         ) / (1 + self.config.options.brand_model_match_bonus)
 
     @contextmanager
@@ -105,9 +96,7 @@ class TireModelDatabase:
     def _load_table_from_db(self) -> Optional[pl.DataFrame]:
         result = None
         try:
-            result = pl.read_database(
-                f"select * from {self.config.table_name}", self.engine
-            )
+            result = pl.read_database(f"select * from {self.config.table_name}", self.engine)
             self.last_table_update = time.perf_counter()
 
         except Exception as e:
@@ -117,10 +106,7 @@ class TireModelDatabase:
         return result
 
     def _is_cache_expired(self) -> bool:
-        return (
-            time.perf_counter() - self.last_table_update
-            > self.config.table_cache_ttl_seconds
-        )
+        return time.perf_counter() - self.last_table_update > self.config.table_cache_ttl_seconds
 
     def _save_table_to_disk(self):
         if self._table is not None:
@@ -142,12 +128,7 @@ class TireModelDatabase:
         return None
 
     def _normalize_table_name(self, table: pl.DataFrame) -> pl.DataFrame:
-        return table.with_columns(
-            pl.col("name")
-            .str.to_lowercase()
-            .str.strip_chars(" ")
-            .alias("name_normalized")
-        )
+        return table.with_columns(pl.col("name").str.to_lowercase().str.strip_chars(" ").alias("name_normalized"))
 
     @property
     def table(self) -> pl.DataFrame:
@@ -159,9 +140,7 @@ class TireModelDatabase:
                 self._save_table_to_disk()
                 return self._table
             else:
-                self.logger.warning(
-                    "Failed to load from database, falling back to cache"
-                )
+                self.logger.warning("Failed to load from database, falling back to cache")
 
         if self._table is not None:
             return self._table
@@ -172,9 +151,7 @@ class TireModelDatabase:
             self._table = self._normalize_table_name(disk_table)
             return self._table
 
-        raise RuntimeError(
-            "Table unavailable: failed to load from database, disk cache, and RAM"
-        )
+        raise RuntimeError("Table unavailable: failed to load from database, disk cache, and RAM")
 
     def get_scores(self, queries: List[str]):
         df_queries = pl.DataFrame(
@@ -194,9 +171,9 @@ class TireModelDatabase:
                     ]
                 )
                 .map_elements(
-                    lambda x: self._similarity_metrics[
-                        self.config.options.similarity_metric
-                    ](x["name_normalized"], x["query_normalized"]),
+                    lambda x: self._similarity_metrics[self.config.options.similarity_metric](
+                        x["name_normalized"], x["query_normalized"]
+                    ),
                     return_dtype=pl.Float64,
                 )
                 .alias("score"),
@@ -230,10 +207,7 @@ class TireModelDatabase:
                 descending=[True, True],
             )
             .with_columns(
-                pl.col(f"candidate_{kind}_score")
-                .rank(method="min", descending=True)
-                .over(f"{kind}_id")
-                .alias("rank")
+                pl.col(f"candidate_{kind}_score").rank(method="min", descending=True).over(f"{kind}_id").alias("rank")
             )
             .filter(pl.col("rank") <= self.config.options.max_distinct_matches)
             .drop("rank")
@@ -254,11 +228,7 @@ class TireModelDatabase:
             "candidate_{kind}_name",
             "candidate_{kind}_score",
         ]
-        cols = [
-            col.format(kind=kind)
-            for kind in ["model", "brand"]
-            for col in col_templates
-        ]
+        cols = [col.format(kind=kind) for kind in ["model", "brand"] for col in col_templates]
         cols.append("combined_score")
 
         df_model_brand = (

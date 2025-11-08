@@ -33,9 +33,7 @@ def main():
 
     image_paths = list(src_images.glob("*.png"))
 
-    train_paths, val_paths = train_test_split(
-        image_paths, test_size=args.test_size, random_state=42
-    )
+    train_paths, val_paths = train_test_split(image_paths, test_size=args.test_size, random_state=42)
 
     for image_path in train_paths:
         shutil.copy(image_path, dest_images_train / image_path.name)

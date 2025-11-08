@@ -40,10 +40,7 @@ def check_correct(gt: dict[str, object], candidates: list[dict[str, object]]):
         return result
 
     for candidate in candidates:
-        if (
-            candidate["model_id"] == gt["model_id"]
-            and candidate["brand_id"] == gt["brand_id"]
-        ):
+        if candidate["model_id"] == gt["model_id"] and candidate["brand_id"] == gt["brand_id"]:
             result["absolutely_correct"] = 1
             result["max_ratio_brand"] = 1
             result["max_ratio_model"] = 1
@@ -89,11 +86,12 @@ async def get_prediction(
         start_time = time.time()
         image_bytes = get_image_bytes(image)
         headers = {"Authorization": f"Bearer {token}"}
-        data = {"image": image_bytes, "annotation_options": {"ocr_options": {"model_name": "qwen/qwen3-vl-30b-a3b-instruct"}}}
+        data = {
+            "image": image_bytes,
+            "annotation_options": {"ocr_options": {"model_name": "qwen/qwen3-vl-30b-a3b-instruct"}},
+        }
         try:
-            response = await client.post(
-                endpoint, json=data, headers=headers, timeout=timeout
-            )
+            response = await client.post(endpoint, json=data, headers=headers, timeout=timeout)
             response.raise_for_status()
             end_time = time.time()
             return response.json(), end_time - start_time
@@ -121,9 +119,7 @@ async def get_prediction_v2(
         files = {"image": ("image.jpg", image_bytes, "image/jpeg")}
         data = {"annotation_options": {"ocr_options": {"model_name": "qwen/qwen3-vl-30b-a3b-instruct"}}}
         try:
-            response = await client.post(
-                endpoint, files=files, headers=headers, timeout=timeout, data=data
-            )
+            response = await client.post(endpoint, files=files, headers=headers, timeout=timeout, data=data)
             response.raise_for_status()
             end_time = time.time()
             return response.json(), end_time - start_time
@@ -178,12 +174,8 @@ async def main():
         gt_data_raw = read_json(gt_path)
 
         gt_data_raw = {
-            "model": int(gt_data_raw["model"])
-            if gt_data_raw["model"] is not None
-            else None,
-            "brand": int(gt_data_raw["brand"])
-            if gt_data_raw["brand"] is not None
-            else None,
+            "model": int(gt_data_raw["model"]) if gt_data_raw["model"] is not None else None,
+            "brand": int(gt_data_raw["brand"]) if gt_data_raw["brand"] is not None else None,
         }
 
         if gt_data_raw["model"] is None or gt_data_raw["brand"] is None:
@@ -222,13 +214,9 @@ async def main():
         semaphore: asyncio.Semaphore,
     ):
         if args.multipart:
-            output, exec_time = await get_prediction_v2(
-                client, image, endpoint, token, semaphore, args.timeout
-            )
+            output, exec_time = await get_prediction_v2(client, image, endpoint, token, semaphore, args.timeout)
         else:
-            output, exec_time = await get_prediction(
-                client, image, endpoint, token, semaphore, args.timeout
-            )
+            output, exec_time = await get_prediction(client, image, endpoint, token, semaphore, args.timeout)
 
         if output is None:
             return None
@@ -265,9 +253,7 @@ async def main():
         print("\nMean metrics:")
         print(df.select(pl.exclude("name", "raw_output")).mean())
 
-        output_path = (
-            Path(args.output_json) if args.output_json else Path("ocr_results.json")
-        )
+        output_path = Path(args.output_json) if args.output_json else Path("ocr_results.json")
         with open(output_path, "w") as f:
             json.dump(all_results, f)
 

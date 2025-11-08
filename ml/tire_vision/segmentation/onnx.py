@@ -47,9 +47,7 @@ class OnnxSegmentator:
 
         logits_squeezed = np.squeeze(logits, axis=(0, 1))
         probs = 1 / (1 + np.exp(-logits_squeezed))
-        resize_mask_shape = (
-            (w, h) if self.resize_mask_shape is None else self.resize_mask_shape
-        )
+        resize_mask_shape = (w, h) if self.resize_mask_shape is None else self.resize_mask_shape
         probs = cv2.resize(probs, resize_mask_shape, interpolation=cv2.INTER_LINEAR)
 
         if threshold is not None:

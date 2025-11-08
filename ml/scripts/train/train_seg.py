@@ -76,9 +76,9 @@ class UnwrapperDataset(Dataset):
 
         self.reg_backgrounds = []
         if self.reg_backgrounds_dir is not None:
-            self.reg_backgrounds = list(
-                map(str, Path(self.reg_backgrounds_dir).glob("*.png"))
-            ) + list(map(str, Path(self.reg_backgrounds_dir).glob("*.jpg")))
+            self.reg_backgrounds = list(map(str, Path(self.reg_backgrounds_dir).glob("*.png"))) + list(
+                map(str, Path(self.reg_backgrounds_dir).glob("*.jpg"))
+            )
 
         self.transform_img = v2.Compose(
             [
@@ -174,9 +174,7 @@ class UnwrapperDataset(Dataset):
         image_tensor = self.transform_img(image_pil)
         mask_tensor = self.transform_mask(mask_pil).squeeze(0)
 
-        image_aug, mask_aug = self.transform_aug(
-            tv_tensors.Image(image_tensor), tv_tensors.Mask(mask_tensor)
-        )
+        image_aug, mask_aug = self.transform_aug(tv_tensors.Image(image_tensor), tv_tensors.Mask(mask_tensor))
 
         mask_bin = (mask_aug > 0.5).float()
 
@@ -268,14 +266,8 @@ class SegformerWrapper(pl.LightningModule):
         preds_bin = probs > self.args.iou_threshold
         labels_bin = labels > 0.5
 
-        intersection = (
-            torch.sum(torch.logical_and(preds_bin, labels_bin), dim=(1, 2))
-            + self.args.iou_eps
-        )
-        union = (
-            torch.sum(torch.logical_or(preds_bin, labels_bin), dim=(1, 2))
-            + self.args.iou_eps
-        )
+        intersection = torch.sum(torch.logical_and(preds_bin, labels_bin), dim=(1, 2)) + self.args.iou_eps
+        union = torch.sum(torch.logical_or(preds_bin, labels_bin), dim=(1, 2)) + self.args.iou_eps
         return torch.mean(intersection / union)
 
     def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor):
@@ -320,10 +312,7 @@ class SegformerWrapper(pl.LightningModule):
         return {"val_loss": total_loss, "val_iou": iou}
 
     def on_validation_epoch_end(self):
-        if not (
-            hasattr(self.trainer, "test_dataloader")
-            and self.trainer.test_dataloader is not None
-        ):
+        if not (hasattr(self.trainer, "test_dataloader") and self.trainer.test_dataloader is not None):
             return
 
         test_loader = self.trainer.test_dataloader()
@@ -346,11 +335,7 @@ class SegformerWrapper(pl.LightningModule):
                     masked_image_uint8 = (masked_image * 255).clamp(0, 255).byte()
 
                     epoch_num = self.current_epoch
-                    save_path = (
-                        Path(self.args.test_save_dir)
-                        / f"epoch_{epoch_num:03d}"
-                        / f"masked_{batch_idx}_{i}.png"
-                    )
+                    save_path = Path(self.args.test_save_dir) / f"epoch_{epoch_num:03d}" / f"masked_{batch_idx}_{i}.png"
                     save_path.parent.mkdir(parents=True, exist_ok=True)
                     write_png(masked_image_uint8.cpu(), str(save_path))
 
@@ -445,9 +430,7 @@ def main():
         trainer.test_dataloader = lambda: test_loader
 
     print("Starting training...")
-    trainer.fit(
-        model, train_loader, val_loader, ckpt_path=args.resume_training_checkpoint
-    )
+    trainer.fit(model, train_loader, val_loader, ckpt_path=args.resume_training_checkpoint)
     print(f"Masked images saved to: {args.test_save_dir}")
 
 

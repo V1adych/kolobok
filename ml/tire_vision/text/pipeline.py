@@ -20,11 +20,13 @@ import logging
 def _json_format(data):
     return json.dumps(data, indent=4)
 
+
 @dataclass
 class AnnotationResult:
     strings: List[str]
     tire_size: str
     index_results: List[IndexResult]
+
 
 class TireAnnotationPipeline:
     def __init__(self, config: TireAnnotationPipelineConfig):
@@ -36,9 +38,7 @@ class TireAnnotationPipeline:
 
         self.max_image_size = config.max_image_size
 
-        self._composition_strategies: Dict[
-            str, Callable[[Optional[np.ndarray], np.ndarray], List[np.ndarray]]
-        ] = {
+        self._composition_strategies: Dict[str, Callable[[Optional[np.ndarray], np.ndarray], List[np.ndarray]]] = {
             "unwrapped": self._compose_unwrapped,
             "both": self._compose_both,
         }
@@ -46,9 +46,7 @@ class TireAnnotationPipeline:
         self.logger = logging.getLogger("tire_annotation_pipeline")
         self.logger.info("TireAnnotationPipeline initialized")
 
-    def __call__(
-        self, image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None
-    ) -> Dict[str, Any]:
+    def __call__(self, image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None) -> Dict[str, Any]:
         self.logger.info("Running TireAnnotationPipeline")
         start_time = time.perf_counter()
 
@@ -60,19 +58,13 @@ class TireAnnotationPipeline:
         self.logger.info("Running TireDetector")
         tire_mask = self.detector(
             image,
-            options=(
-                options.sidewall_segmentator_options
-                if options is not None
-                else None
-            ),
+            options=(options.sidewall_segmentator_options if options is not None else None),
         )
         self.logger.info(f"TireDetector result shape: {tire_mask.shape}")
         unwrapped_image = self.unwrapper(
             image,
             tire_mask,
-            options=(
-                options.sidewall_unwrapper_options if options is not None else None
-            ),
+            options=(options.sidewall_unwrapper_options if options is not None else None),
         )
         unwrap_success = True
 
@@ -80,9 +72,7 @@ class TireAnnotationPipeline:
             f"Original image shape: {image.shape}, unwrapped image shape: {getattr(unwrapped_image, 'shape', None)}"
         )
 
-        images_for_ocr, prompt = self.image_composition(
-            unwrapped_image if unwrap_success else None, image
-        )
+        images_for_ocr, prompt = self.image_composition(unwrapped_image if unwrap_success else None, image)
 
         images_for_ocr = list(map(self._dynamic_resize, images_for_ocr))
 
@@ -131,9 +121,7 @@ class TireAnnotationPipeline:
         matches = self._get_tire_size_matches(ocr_result.strings)
         if matches:
             matched_strings, matched_patterns = zip(*matches)
-            ocr_result.strings = list(
-                set(ocr_result.strings) - set(matched_strings)
-            )
+            ocr_result.strings = list(set(ocr_result.strings) - set(matched_strings))
 
             if not ocr_result.tire_size:
                 ocr_result.tire_size = matched_patterns[0]
@@ -159,9 +147,7 @@ class TireAnnotationPipeline:
             return [original_image], self.config.original_prompt
 
         compose = self._composition_strategies[self.config.image_composition_strategy]
-        self.logger.info(
-            f"Unwrap successful. Using image composition strategy: {compose.__name__}"
-        )
+        self.logger.info(f"Unwrap successful. Using image composition strategy: {compose.__name__}")
         return compose(unwrapped_image, original_image)
 
     def _compose_unwrapped(

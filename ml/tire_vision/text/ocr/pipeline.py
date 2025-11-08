@@ -51,13 +51,10 @@ class OCRPipeline:
             response_text = self._get_llm_response(file_inputs, user_prompt)
         except APIStatusError as e:
             self.logger.error(format_exc())
-            detail = str(e.body)
-            if e.body and "error" in e.body and isinstance(e.body["error"], dict) and "message" in e.body["error"]:
-                detail = e.body["error"]["message"]
-            raise HTTPException(status_code=e.status_code, detail=f"OCR provider error: {detail}")
-        except Exception as e:
-            self.logger.error(format_exc())
-            raise HTTPException(status_code=500, detail=f"OCR returned unexpected error: {e}")
+            raise HTTPException(
+                status_code=e.status_code,
+                detail=f"OCR provider returned error: {e.body}",
+            )
 
         tire_info = self._parse_llm_response(response_text)
         return tire_info

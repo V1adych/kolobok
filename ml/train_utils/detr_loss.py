@@ -72,15 +72,9 @@ class HungarianMatcher(nn.Module):
 
             cost_bbox = torch.cdist(out_bbox[b], tgt_bbox, p=1)
 
-            cost_giou = 1.0 - generalized_box_iou(
-                box_cxcywh_to_xyxy(out_bbox[b]), box_cxcywh_to_xyxy(tgt_bbox)
-            )
+            cost_giou = 1.0 - generalized_box_iou(box_cxcywh_to_xyxy(out_bbox[b]), box_cxcywh_to_xyxy(tgt_bbox))
 
-            C = (
-                self.class_cost * cost_class
-                + self.bbox_cost * cost_bbox
-                + self.giou_cost * cost_giou
-            )
+            C = self.class_cost * cost_class + self.bbox_cost * cost_bbox + self.giou_cost * cost_giou
             C = C.cpu()
 
             q_ind, t_ind = linear_sum_assignment(C)
@@ -108,9 +102,7 @@ class DETRCriterion(nn.Module):
         self.register_buffer("empty_weight", empty_weight)
 
     def _get_src_permutation_idx(self, indices):
-        batch_idx = torch.cat(
-            [torch.full_like(src, i) for i, (src, _) in enumerate(indices)]
-        )
+        batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.cat([src for (src, _) in indices])
         return batch_idx, src_idx
 
@@ -118,9 +110,7 @@ class DETRCriterion(nn.Module):
         src_logits = outputs["pred_logits"]
         idx = self._get_src_permutation_idx(indices)
 
-        target_classes_o = torch.cat(
-            [t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0
-        )
+        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)], dim=0)
         target_classes = torch.full(
             src_logits.shape[:2],
             self.num_classes,
@@ -139,17 +129,11 @@ class DETRCriterion(nn.Module):
     def loss_boxes(self, outputs, targets, indices):
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs["pred_boxes"][idx]
-        target_boxes = torch.cat(
-            [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
-        )
+        target_boxes = torch.cat([t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
-        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none").sum() / max(
-            target_boxes.shape[0], 1
-        )
+        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction="none").sum() / max(target_boxes.shape[0], 1)
 
-        giou = generalized_box_iou(
-            box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)
-        )
+        giou = generalized_box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
         loss_giou = (1.0 - torch.diag(giou)).sum() / max(target_boxes.shape[0], 1)
         return {"loss_bbox": loss_bbox, "loss_giou": loss_giou}
 
@@ -157,9 +141,7 @@ class DETRCriterion(nn.Module):
     def loss_cardinality(self, outputs, targets, indices):
         pred_logits = outputs["pred_logits"]
         card_pred = (pred_logits.argmax(-1) != pred_logits.shape[-1] - 1).sum(1)
-        tgt_lengths = torch.as_tensor(
-            [len(v["labels"]) for v in targets], device=pred_logits.device
-        )
+        tgt_lengths = torch.as_tensor([len(v["labels"]) for v in targets], device=pred_logits.device)
         card_err = F.l1_loss(card_pred.float(), tgt_lengths.float())
         return {"cardinality_error": card_err}
 
@@ -179,12 +161,8 @@ class DETRCriterion(nn.Module):
         if "aux_outputs" in outputs:
             for i, aux in enumerate(outputs["aux_outputs"]):
                 idx_losses = {}
-                idx_losses.update(
-                    self.loss_labels(aux, targets, self.matcher(aux, targets))
-                )
-                idx_losses.update(
-                    self.loss_boxes(aux, targets, self.matcher(aux, targets))
-                )
+                idx_losses.update(self.loss_labels(aux, targets, self.matcher(aux, targets)))
+                idx_losses.update(self.loss_boxes(aux, targets, self.matcher(aux, targets)))
                 for k, v in idx_losses.items():
                     losses[f"{k}_{i}"] = v
         return losses
