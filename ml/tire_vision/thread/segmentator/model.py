@@ -16,10 +16,7 @@ class ThreadSegmentator:
         self.config = config
         self.logger = logging.getLogger("thread_segmentator")
 
-        self.segmentator = OnnxSegmentator(
-            self.config.thread_segmentator_onnx,
-            self.config.resize_shape,
-        )
+        self.segmentator = OnnxSegmentator(self.config.thread_segmentator_onnx, self.config.resize_shape)
 
         self.logger.info("ThreadSegmentator initialized successfully")
 

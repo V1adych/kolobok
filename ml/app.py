@@ -2,7 +2,7 @@ import base64
 import io
 from typing import Optional
 
-from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
+from fastapi import FastAPI, Depends, File, UploadFile
 from PIL import Image
 import numpy as np
 
@@ -50,18 +50,10 @@ def analyze_thread(
 
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))).convert("RGB"))
     result = get_thread_stats(image, options=req.thread_options)
-    if result["success"] == 0:
-        raise HTTPException(status_code=400, detail="Tire not found on the image, or it is too small")
-
-    image_with_annotations = add_annotations(result["vis_image"], result["studs"])
-
+    image_with_annotations = add_annotations(image, result.studs)
     img_str = numpy_to_base64(image_with_annotations)
 
-    return ThreadAnalysisResponse(
-        thread_depth=result["depth"],
-        studs=result["studs"],
-        image=img_str,
-    )
+    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, image=img_str)
 
 
 @app.post("/api/v1/extract_information", response_model=ExtractInformationResponse)
@@ -77,9 +69,7 @@ def extract_information(
     result = extract_tire_info(image, options=req.annotation_options)
 
     return ExtractInformationResponse(
-        strings=result.strings,
-        tire_size=result.tire_size,
-        index_results=result.index_results,
+        strings=result.strings, tire_size=result.tire_size, index_results=result.index_results
     )
 
 
@@ -95,19 +85,12 @@ async def analyze_thread_bin(
 
     image_np = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
     result = get_thread_stats(image_np, options=options)
-    if result["success"] == 0:
-        raise HTTPException(status_code=400, detail="Tire not found on the image, or it is too small")
-
-    image_with_annotations = add_annotations(result["vis_image"], result["studs"])
+    image_with_annotations = add_annotations(image_np, result.studs)
     logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
 
     img_str = numpy_to_base64(image_with_annotations)
 
-    return ThreadAnalysisResponse(
-        thread_depth=result["depth"],
-        studs=result["studs"],
-        image=img_str,
-    )
+    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, image=img_str)
 
 
 @app.post("/api/v1/bin/extract_information", response_model=ExtractInformationResponse)
@@ -125,7 +108,5 @@ async def extract_information_bin(
     result = extract_tire_info(image_np, options=options)
 
     return ExtractInformationResponse(
-        strings=result.strings,
-        tire_size=result.tire_size,
-        index_results=result.index_results,
+        strings=result.strings, tire_size=result.tire_size, index_results=result.index_results
     )

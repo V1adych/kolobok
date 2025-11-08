@@ -51,10 +51,7 @@ class OCRPipeline:
             response_text = self._get_llm_response(file_inputs, user_prompt)
         except APIStatusError as e:
             self.logger.error(format_exc())
-            raise HTTPException(
-                status_code=e.status_code,
-                detail=f"OCR provider returned error: {e.body}",
-            )
+            raise HTTPException(status_code=e.status_code, detail=f"OCR provider returned error: {e.body}")
 
         tire_info = self._parse_llm_response(response_text)
         return tire_info
@@ -90,19 +87,9 @@ class OCRPipeline:
             {"type": "text", "text": user_prompt},
         ]
         for file_input in file_inputs:
-            content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": file_input},
-                }
-            )
+            content.append({"type": "image_url", "image_url": {"url": file_input}})
 
-        messages.append(
-            {
-                "role": "user",
-                "content": content,
-            }
-        )
+        messages.append({"role": "user", "content": content})
 
         return messages
 
@@ -136,12 +123,14 @@ class OCRPipeline:
         match = re.search(r"\{.*\}", response, flags=re.DOTALL)
         error_detail = f"OCR response is not valid: {response}"
         if not match:
+            self.logger.error(f"JSON object not found in OCR response. Detail: {error_detail}")
             raise HTTPException(status_code=502, detail=error_detail)
         json_str = match.group(0)
         tire_info = json.loads(json_str)
         self.logger.info(f"Parsed OCR result: {tire_info}")
 
         if "strings" not in tire_info or "tire_size" not in tire_info:
+            self.logger.error(f"Required fields not found in OCR response. Detail: {error_detail}")
             raise HTTPException(status_code=502, detail=error_detail)
 
         return OCRResult(strings=tire_info["strings"], tire_size=tire_info["tire_size"])

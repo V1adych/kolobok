@@ -9,13 +9,17 @@ from tire_vision.config import SidewallUnwrapperConfig
 from tire_vision.options import SidewallUnwrapperOptions
 
 
+import logging
+
 class SidewallUnwrapper:
     def __init__(self, config: SidewallUnwrapperConfig):
         self.config = config
-        self.clahe = cv2.createCLAHE(
-            clipLimit=self.config.clahe_clip_limit,
-            tileGridSize=self.config.clahe_tile_grid_size,
-        )
+        self.logger = logging.getLogger("sidewall_unwrapper")
+        clip_limit = self.config.clahe_clip_limit
+        tile_grid_size = self.config.clahe_tile_grid_size
+        self.clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+
+        self.logger.info("SidewallUnwrapper initialized successfully")
 
     def _postprocess_mask(self, mask: np.ndarray):
         kernel_size = self.config.mask_postprocess_ksize
@@ -33,20 +37,14 @@ class SidewallUnwrapper:
     def _ellipse_params_from_mask(self, mask_cc):
         cnts, _ = cv2.findContours(mask_cc, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if not cnts:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to find full sidewall on the image. Make sure you are providing an entire sidewall ring",
-            )
+            msg = "Failed to find full sidewall on the image. Make sure you are providing an entire sidewall ring"
+            self.logger.error(msg)
+            raise HTTPException(status_code=500, detail=msg)
         cnt = max(cnts, key=cv2.contourArea)
 
         return cv2.fitEllipse(cnt)
 
-    def get_unwrapped_tire(
-        self,
-        image: np.ndarray,
-        mask: np.ndarray,
-        options: Optional[SidewallUnwrapperOptions] = None,
-    ):
+    def forward(self, image: np.ndarray, mask: np.ndarray, options: Optional[SidewallUnwrapperOptions] = None):
         h, w = image.shape[:2]
         if options is not None:
             self.config = replace(self.config, options=options)
@@ -64,13 +62,8 @@ class SidewallUnwrapper:
             scale = np.array([[1, 0, 0], [0, scale_y, y * (1 - scale_y)]], dtype=np.float32)
             image = cv2.warpAffine(image, scale, (w, h), flags=cv2.INTER_CUBIC)
 
-        polar_image = cv2.warpPolar(
-            image,
-            self.config.options.polar_unwrap_size,
-            (x, y),
-            r_minor,
-            flags=cv2.INTER_CUBIC,
-        )
+        dst_size = self.config.options.polar_unwrap_size
+        polar_image = cv2.warpPolar(image, dst_size, (x, y), r_minor, flags=cv2.INTER_CUBIC)
 
         polar_image = cv2.rotate(polar_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
@@ -84,18 +77,5 @@ class SidewallUnwrapper:
 
         return cv2.cvtColor(lab_image, cv2.COLOR_LAB2RGB)
 
-    def forward(
-        self,
-        image: np.ndarray,
-        mask: np.ndarray,
-        options: Optional[SidewallUnwrapperOptions] = None,
-    ):
-        return self.get_unwrapped_tire(image, mask, options=options)
-
-    def __call__(
-        self,
-        image: np.ndarray,
-        mask: np.ndarray,
-        options: Optional[SidewallUnwrapperOptions] = None,
-    ):
+    def __call__(self, image: np.ndarray, mask: np.ndarray, options: Optional[SidewallUnwrapperOptions] = None):
         return self.forward(image, mask, options=options)

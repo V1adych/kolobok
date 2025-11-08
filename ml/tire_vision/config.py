@@ -18,7 +18,7 @@ from tire_vision.options import (
 DEVICE = "cpu"
 
 
-CLASS_MAPPING = {
+LABEL_MAPPING = {
     0: "broken",
     1: "healthy",
 }

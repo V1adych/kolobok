@@ -21,20 +21,23 @@ class IndexPipeline:
         start_time = time.perf_counter()
         result = self.database.query(queries, options=options)
         result = result.to_dicts()
-        result = [
-            IndexResult(
-                model_id=r["model_id"],
-                model_name=r["model_name"],
-                candidate_model_name=r["candidate_model_name"],
-                candidate_model_score=r["candidate_model_score"],
-                brand_id=r["brand_id"],
-                brand_name=r["brand_name"],
-                candidate_brand_name=r["candidate_brand_name"],
-                candidate_brand_score=r["candidate_brand_score"],
-                combined_score=r["combined_score"],
+        result = list(
+            map(
+                lambda r: IndexResult(
+                    model_id=r["model_id"],
+                    model_name=r["model_name"],
+                    candidate_model_name=r["candidate_model_name"],
+                    candidate_model_score=r["candidate_model_score"],
+                    brand_id=r["brand_id"],
+                    brand_name=r["brand_name"],
+                    candidate_brand_name=r["candidate_brand_name"],
+                    candidate_brand_score=r["candidate_brand_score"],
+                    combined_score=r["combined_score"],
+                ),
+                result,
             )
-            for r in result
-        ]
+        )
         latency = time.perf_counter() - start_time
         self.logger.info(f"IndexPipeline completed in {latency:.4f} seconds")
+
         return result

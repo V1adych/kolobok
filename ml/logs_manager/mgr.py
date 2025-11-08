@@ -5,6 +5,7 @@ import logging
 import io
 from PIL import Image
 import json
+import traceback
 
 import boto3
 import numpy as np
@@ -12,11 +13,12 @@ import numpy as np
 from logs_manager.config import LogsConfig
 
 
+def serialize_exception(e: Exception) -> Dict[str, Any]:
+    return {"type": type(e).__name__, "detail": str(e), "traceback": traceback.format_exc()}
+
+
 class LogsMgr:
-    def __init__(
-        self,
-        config: LogsConfig,
-    ):
+    def __init__(self, config: LogsConfig):
         self.config = config
         self.s3 = boto3.client(
             "s3",
@@ -34,25 +36,13 @@ class LogsMgr:
         buffered = io.BytesIO()
         image.save(buffered, format="PNG")
         buffered.seek(0)
-        self.s3.upload_fileobj(
-            Fileobj=buffered,
-            Bucket=self.bucket_name,
-            Key=path,
-        )
+        self.s3.upload_fileobj(Fileobj=buffered, Bucket=self.bucket_name, Key=path)
 
     def _upload_json(self, data: Dict[str, Any], path: str):
-        self.s3.put_object(
-            Body=json.dumps(data).encode("utf-8"),
-            Bucket=self.bucket_name,
-            Key=path,
-        )
+        self.s3.put_object(Body=json.dumps(data).encode("utf-8"), Bucket=self.bucket_name, Key=path)
 
     def _upload_txt(self, data: str, path: str):
-        self.s3.put_object(
-            Body=data.encode("utf-8"),
-            Bucket=self.bucket_name,
-            Key=path,
-        )
+        self.s3.put_object(Body=data.encode("utf-8"), Bucket=self.bucket_name, Key=path)
 
     def upload_log(self, image: np.ndarray, json_data: Dict[str, Any], metadata: str = ""):
         cur_time = datetime.datetime.now().isoformat()

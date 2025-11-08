@@ -15,10 +15,7 @@ class SidewallSegmentator:
         self.config = config
         self.logger = logging.getLogger("sidewall_segmentator")
 
-        self.segmentator = OnnxSegmentator(
-            self.config.sidewall_segmentator_onnx,
-            self.config.resize_shape,
-        )
+        self.segmentator = OnnxSegmentator(self.config.sidewall_segmentator_onnx, self.config.resize_shape)
 
         self.logger.info("SidewallSegmentator initialized successfully")
 

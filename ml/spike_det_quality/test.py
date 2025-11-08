@@ -148,7 +148,7 @@ def main():
         if len(boxes_list) > 0:
             boxes_pred = cxcywh_to_xyxy(np.array(boxes_list, dtype=np.float32))
 
-        labels_pred = np.array([spike["class"] for spike in studs], dtype=np.int32)
+        labels_pred = np.array([spike["label_id"] for spike in studs], dtype=np.int32)
         boxes_annot = cxcywh_to_xyxy(
             np.array(
                 [annotation["bbox"] for annotation in annotations_for_image],

@@ -4,18 +4,24 @@ import asyncio
 
 import numpy as np
 
-from .mgr import LogsMgr
-from .config import LogsConfig
+from logs_manager.mgr import LogsMgr, serialize_exception
+from logs_manager.config import LogsConfig
 
-mgr = LogsMgr(LogsConfig())
+config = LogsConfig()
+mgr = LogsMgr(config)
 loop = asyncio.get_event_loop()
 
 
 def log_wrapper(func: Callable[[np.ndarray], Dict[str, Any]]):
     @wraps(func)
     def wrapper(image: np.ndarray, *args, **kwargs):
-        result = func(image, *args, **kwargs)
-        loop.run_in_executor(None, mgr.upload_log, image, result, func.__name__)
-        return result
+        try:
+            result = func(image, *args, **kwargs)
+            loop.run_in_executor(None, mgr.upload_log, image, result, func.__name__)
+            return result
+        except Exception as e:
+            error_log = serialize_exception(e)
+            loop.run_in_executor(None, mgr.upload_log, image, error_log, f"{func.__name__}_error")
+            raise e
 
     return wrapper

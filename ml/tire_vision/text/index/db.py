@@ -57,15 +57,8 @@ class TireModelDatabase:
         self.logger.info("TireModelDatabase initialized successfully")
 
     def calculate_score(self, name: str, queries: List[str]) -> List[Tuple[float, str]]:
-        return list(
-            map(
-                lambda x: (
-                    self._similarity_metrics[self.config.options.similarity_metric](name, x[1]),
-                    x[0],
-                ),
-                map(lambda x: (x, x.lower().strip()), queries),
-            )
-        )
+        metric = self._similarity_metrics[self.config.options.similarity_metric]
+        return list(map(lambda x: (metric(name, x[1]), x[0]), map(lambda x: (x, x.lower().strip()), queries)))
 
     def get_combined_score(
         self,
@@ -82,11 +75,7 @@ class TireModelDatabase:
     @contextmanager
     def get_session(self):
         with self.session() as session:
-            try:
-                yield session
-            except Exception:
-                session.rollback()
-                raise
+            yield session
 
     def execute_query(self, query: str):
         with self.get_session() as session:
@@ -94,37 +83,30 @@ class TireModelDatabase:
             return result.fetchall()
 
     def _load_table_from_db(self) -> Optional[pl.DataFrame]:
-        result = None
         try:
-            result = pl.read_database(f"select * from {self.config.table_name}", self.engine)
+            table = pl.read_database(f"select * from {self.config.table_name}", self.engine)
             self.last_table_update = time.perf_counter()
-
+            return table
         except Exception as e:
             self.logger.error(f"Error loading table from db: {e}")
-            return None
 
-        return result
+        return None
 
     def _is_cache_expired(self) -> bool:
         return time.perf_counter() - self.last_table_update > self.config.table_cache_ttl_seconds
 
     def _save_table_to_disk(self):
         if self._table is not None:
-            try:
-                self.table_path.parent.mkdir(parents=True, exist_ok=True)
-                self._table.write_parquet(self.table_path)
-                self.logger.debug("Table saved to disk successfully")
-            except Exception as e:
-                self.logger.error(f"Failed to save table to disk: {e}")
+            self.table_path.parent.mkdir(parents=True, exist_ok=True)
+            self._table.write_parquet(self.table_path)
+            self.logger.debug("Table saved to disk successfully")
 
     def _load_table_from_disk(self) -> Optional[pl.DataFrame]:
-        try:
-            if self.table_path.exists():
-                table = pl.read_parquet(self.table_path)
-                self.logger.info("Table loaded from disk cache")
-                return table
-        except Exception as e:
-            self.logger.error(f"Error loading table from disk: {e}")
+        if self.table_path.exists():
+            table = pl.read_parquet(self.table_path)
+            self.logger.info("Table loaded from disk cache")
+            return table
+
         return None
 
     def _normalize_table_name(self, table: pl.DataFrame) -> pl.DataFrame:
@@ -160,22 +142,13 @@ class TireModelDatabase:
                 "query_normalized": list(map(lambda x: x.lower().strip(), queries)),
             }
         ).lazy()
+        metric = self._similarity_metrics[self.config.options.similarity_metric]
         df = (
             self.table.lazy()
             .join(df_queries, how="cross")
             .with_columns(
-                pl.struct(
-                    [
-                        pl.col("name_normalized"),
-                        pl.col("query_normalized"),
-                    ]
-                )
-                .map_elements(
-                    lambda x: self._similarity_metrics[self.config.options.similarity_metric](
-                        x["name_normalized"], x["query_normalized"]
-                    ),
-                    return_dtype=pl.Float64,
-                )
+                pl.struct([pl.col("name_normalized"), pl.col("query_normalized")])
+                .map_elements(lambda x: metric(x["name_normalized"], x["query_normalized"]), return_dtype=pl.Float64)
                 .alias("score"),
             )
         )
@@ -222,12 +195,7 @@ class TireModelDatabase:
         df_model = self.get_best_matches(df, "model")
         df_brand = self.get_best_matches(df, "brand")
 
-        col_templates = [
-            "{kind}_id",
-            "{kind}_name",
-            "candidate_{kind}_name",
-            "candidate_{kind}_score",
-        ]
+        col_templates = ["{kind}_id", "{kind}_name", "candidate_{kind}_name", "candidate_{kind}_score"]
         cols = [col.format(kind=kind) for kind in ["model", "brand"] for col in col_templates]
         cols.append("combined_score")
 
@@ -244,11 +212,7 @@ class TireModelDatabase:
             )
             .select(*cols)
             .sort(
-                [
-                    pl.col("combined_score"),
-                    pl.col("model_name").str.len_chars(),
-                    pl.col("brand_name").str.len_chars(),
-                ],
+                [pl.col("combined_score"), pl.col("model_name").str.len_chars(), pl.col("brand_name").str.len_chars()],
                 descending=[True, True, True],
             )
             .limit(self.config.options.max_query_results)

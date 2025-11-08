@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Tuple, Optional
 from dataclasses import replace
 import time
 
@@ -6,9 +6,9 @@ import numpy as np
 import cv2
 import onnxruntime as ort
 
-from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts
+from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts, LABEL_MAPPING
 from tire_vision.options import StudPipelineOptions
-
+from models import Stud
 
 import logging
 
@@ -30,11 +30,7 @@ def xyxy2cxcywh(boxes: np.ndarray) -> np.ndarray:
     return np.stack([cx, cy, w, h], axis=1)
 
 
-def nms(
-    boxes: np.ndarray,
-    scores: np.ndarray,
-    iou_threshold: float,
-) -> np.ndarray:
+def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> np.ndarray:
     if boxes.size == 0:
         return np.zeros((0,), dtype=np.int32)
 
@@ -82,9 +78,7 @@ class StudPipeline:
     def __init__(self, config: StudPipelineConfig):
         self.config = config
         self.det_session = ort.InferenceSession(
-            self.config.spike_detector_onnx,
-            providers=ort_providers,
-            sess_options=ort_opts,
+            self.config.spike_detector_onnx, providers=ort_providers, sess_options=ort_opts
         )
 
         self.logger = logging.getLogger("stud_pipeline")
@@ -117,12 +111,17 @@ class StudPipeline:
 
     def _confidence_filter(
         self, boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         keep = scores > self.config.options.confidence_threshold
 
         return boxes[keep], scores[keep], labels[keep]
 
-    def __call__(self, image: np.ndarray, options: Optional[StudPipelineOptions] = None) -> List[Dict[str, Any]]:
+    def _filter_invalid(self, boxes: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        keep = ((boxes[:, 2] - boxes[:, 0]) > 0) & ((boxes[:, 3] - boxes[:, 1]) > 0) & (labels > 0)
+
+        return boxes[keep], labels[keep]
+
+    def __call__(self, image: np.ndarray, options: Optional[StudPipelineOptions] = None) -> List[Stud]:
         start_time = time.perf_counter()
         if options is not None:
             self.config = replace(self.config, options=options)
@@ -142,22 +141,21 @@ class StudPipeline:
         scores = 1.0 / (1.0 + np.exp(-logits))
         boxes_xyxy, scores, labels = self._confidence_filter(boxes_xyxy, scores, labels)
         boxes_xyxy, scores, labels = self._nms_filter(boxes_xyxy, scores, labels)
+        boxes_xyxy, labels = self._filter_invalid(boxes_xyxy, labels)
 
         boxes_cxcywh = xyxy2cxcywh(boxes_xyxy)
-        boxes_cxcywh = boxes_cxcywh * np.array([w, h, w, h])
+        boxes_cxcywh = boxes_cxcywh * np.array([w, h, w, h], dtype=np.float32)
         boxes_cxcywh = boxes_cxcywh.astype(np.int32)
-        result = [
-            {
-                "box": (
-                    int(boxes_cxcywh[i][0]),
-                    int(boxes_cxcywh[i][1]),
-                    int(boxes_cxcywh[i][2]),
-                    int(boxes_cxcywh[i][3]),
-                ),
-                "class": int(labels[i]) - 1,
-            }
-            for i in range(len(boxes_cxcywh))
-        ]
+
+        labels = labels - 1
+
+        result = list(
+            map(
+                lambda box, label: Stud(box=box, label_id=label, label=LABEL_MAPPING[label]),
+                boxes_cxcywh.tolist(),
+                labels.tolist(),
+            )
+        )
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"Stud pipeline completed in {latency:.4f} seconds")

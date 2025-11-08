@@ -9,19 +9,12 @@ from tire_vision.config import ort_providers, ort_opts
 
 class OnnxSegmentator:
     def __init__(
-        self,
-        onnx_path: str,
-        resize_shape: Tuple[int, int],
-        resize_mask_shape: Optional[Tuple[int, int]] = None,
+        self, onnx_path: str, resize_shape: Tuple[int, int], resize_mask_shape: Optional[Tuple[int, int]] = None
     ):
         self.onnx_path = onnx_path
         self.resize_shape = resize_shape
         self.resize_mask_shape = resize_mask_shape
-        self.session = ort.InferenceSession(
-            self.onnx_path,
-            providers=ort_providers,
-            sess_options=ort_opts,
-        )
+        self.session = ort.InferenceSession(self.onnx_path, providers=ort_providers, sess_options=ort_opts)
 
     def forward(self, image: np.ndarray, threshold: Optional[float] = None):
         """
@@ -40,10 +33,7 @@ class OnnxSegmentator:
             / 255
         )
 
-        logits = self.session.run(
-            None,
-            {"input": resized_image},
-        )[0]
+        logits = self.session.run(None, {"input": resized_image})[0]
 
         logits_squeezed = np.squeeze(logits, axis=(0, 1))
         probs = 1 / (1 + np.exp(-logits_squeezed))

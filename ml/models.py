@@ -41,8 +41,13 @@ class PerfStats(BaseModel):
 
 class Stud(BaseModel):
     box: Tuple[int, int, int, int] = Field(description="Bounding box of a stud (cx, cy, w, h)")
-    class_: int = Field(alias="class", description="Class of a stud (0: broken, 1: healthy)")
+    label_id: int = Field(description="Label ID of a stud (0: broken, 1: healthy)")
     label: str = Field(description="Label of a stud (broken or healthy)")
+
+
+class TireThreadPipelineResult(BaseModel):
+    depth: float
+    studs: List[Stud]
 
 
 class ThreadAnalysisResponse(BaseModel):
@@ -66,6 +71,12 @@ class IndexResult(BaseModel):
         description="Similarity score between the raw OCR result and the exact match from the database"
     )
     combined_score: float = Field(description="Combined similarity score of the model and the brand")
+
+
+class AnnotationResult(BaseModel):
+    strings: List[str]
+    tire_size: str
+    index_results: List[IndexResult]
 
 
 class ExtractInformationResponse(BaseModel):
