@@ -19,13 +19,17 @@ DEVICE = "cpu"
 
 
 LABEL_MAPPING = {
-    0: "broken",
-    1: "healthy",
+    0: "absent",
+    1: "broken",
+    2: "floating",
+    3: "healthy",
 }
 
 CLASS_COLORS = {
-    0: (0, 0, 255),
-    1: (0, 255, 0),
+    0: (0, 0, 255), # red for absent
+    1: (0, 255, 255), # yellow for broken
+    2: (255, 0, 0), # blue for floating
+    3: (0, 255, 0), # green for healthy
 }
 
 SYSTEM_OCR_PROMPT = """You are an expert OCR model specializing in reading text from images of tires. 
@@ -102,7 +106,7 @@ class ThreadSegmentatorConfig:
 
 @dataclass(frozen=True)
 class StudPipelineConfig:
-    spike_detector_onnx: str = "onnx/spike_detector.onnx"
+    spike_detector_onnx: str = "onnx/stud_detector.onnx"
     resize_shape: Tuple[int, int] = (560, 560)
     options: StudPipelineOptions = field(default_factory=StudPipelineOptions)
 

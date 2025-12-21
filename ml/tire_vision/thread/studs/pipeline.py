@@ -77,9 +77,7 @@ def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> np.ndarr
 class StudPipeline:
     def __init__(self, config: StudPipelineConfig):
         self.config = config
-        self.det_session = ort.InferenceSession(
-            self.config.spike_detector_onnx, providers=ort_providers, sess_options=ort_opts
-        )
+        self.det_session = ort.InferenceSession(self.config.spike_detector_onnx, providers=ort_providers, sess_options=ort_opts)
 
         self.logger = logging.getLogger("stud_pipeline")
 
@@ -88,30 +86,23 @@ class StudPipeline:
     def _global_topk(self, boxes: np.ndarray, logits: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         _, num_classes = logits.shape
         logits_flat = logits.reshape(-1)
-        topk_indices = np.argpartition(logits_flat, -self.config.options.max_detections)[
-            -self.config.options.max_detections :
-        ]
+        topk_indices = np.argpartition(logits_flat, -self.config.options.max_detections)[-self.config.options.max_detections :]
         logits_selected = logits_flat[topk_indices]
         ids = np.argsort(logits_selected)[::-1]
         logits_selected = logits_selected[ids]
         topk_indices = topk_indices[ids]
-
         box_indices = topk_indices // num_classes
         labels_selected = topk_indices % num_classes
         boxes_selected = boxes[box_indices]
 
         return boxes_selected, logits_selected, labels_selected
 
-    def _nms_filter(
-        self, boxes: np.ndarray, logits: np.ndarray, labels: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _nms_filter(self, boxes: np.ndarray, logits: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         keep_ids = nms(boxes, logits, self.config.options.nms_iou_threshold)
 
         return boxes[keep_ids], logits[keep_ids], labels[keep_ids]
 
-    def _confidence_filter(
-        self, boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _confidence_filter(self, boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         keep = scores > self.config.options.confidence_threshold
 
         return boxes[keep], scores[keep], labels[keep]

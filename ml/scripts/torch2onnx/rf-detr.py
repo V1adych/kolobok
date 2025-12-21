@@ -16,9 +16,7 @@ logger = logging.getLogger("torch2onnx")
 class Args:
     ckpt_path: str
     shape: Tuple[int, int] = (560, 560)
-    num_classes: int = 3
-    num_select: int = 300
-    iou_threshold: float = 0.2
+    num_classes: int = 5
 
 
 @torch.no_grad()
