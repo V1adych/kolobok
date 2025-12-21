@@ -17,19 +17,30 @@ from tire_vision.options import (
 
 DEVICE = "cpu"
 
+META_TO_LABEL_MAPPING = {
+    0: 0,
+    1: 0,
+    2: 1,
+    3: 1,
+}
 
 LABEL_MAPPING = {
+    0: "broken",
+    1: "healthy",
+}
+
+META_MAPPING = {
     0: "absent",
     1: "broken",
     2: "floating",
     3: "healthy",
 }
 
-CLASS_COLORS = {
-    0: (0, 0, 255), # red for absent
-    1: (0, 255, 255), # yellow for broken
-    2: (255, 0, 0), # blue for floating
-    3: (0, 255, 0), # green for healthy
+META_COLORS = {
+    0: (0, 0, 255),
+    1: (0, 255, 255),
+    2: (255, 0, 0),
+    3: (0, 255, 0),
 }
 
 SYSTEM_OCR_PROMPT = """You are an expert OCR model specializing in reading text from images of tires. 

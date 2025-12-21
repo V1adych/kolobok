@@ -38,12 +38,16 @@ class TireThreadPipeline:
             raise HTTPException(status_code=500, detail="Tire not found on the image, or it is too small")
 
         studs = self.stud_pipeline(image)
+        fraction_healthy = None
+        if len(studs) > 0:
+            fraction_healthy = np.mean(studs.label_id == 1)
+
         depth = self.depth_regressor(cropped_image)
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"Tire thread pipeline completed in {latency:.4f} seconds")
 
-        result = TireThreadPipelineResult(depth=depth, studs=studs)
+        result = TireThreadPipelineResult(depth=depth, studs=studs, fraction_healthy=fraction_healthy)
         self.logger.info(f"Cropped image shape: {cropped_image.shape} Depth: {depth} Number of studs: {len(studs)}")
 
         return result

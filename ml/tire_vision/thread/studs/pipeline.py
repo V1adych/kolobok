@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import onnxruntime as ort
 
-from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts, LABEL_MAPPING
+from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts, META_MAPPING, META_TO_LABEL_MAPPING, LABEL_MAPPING
 from tire_vision.options import StudPipelineOptions
 from models import Stud
 
@@ -140,13 +140,13 @@ class StudPipeline:
 
         labels = labels - 1
 
-        result = list(
-            map(
-                lambda box, label: Stud(box=box, label_id=label, label=LABEL_MAPPING[label]),
-                boxes_cxcywh.tolist(),
-                labels.tolist(),
-            )
-        )
+        def to_stud(box: Tuple[int, int, int, int], meta_label_id: int) -> Stud:
+            meta_label = META_MAPPING[meta_label_id]
+            label_id = META_TO_LABEL_MAPPING[meta_label_id]
+            label = LABEL_MAPPING[label_id]
+            return Stud(box=box, label_id=label_id, label=label, meta_label=meta_label, meta_label_id=meta_label_id)
+
+        result = list(map(to_stud, boxes_cxcywh.tolist(), labels.tolist()))
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"Stud pipeline completed in {latency:.4f} seconds")
