@@ -40,7 +40,7 @@ class TireThreadPipeline:
         studs = self.stud_pipeline(image)
         fraction_healthy = None
         if len(studs) > 0:
-            fraction_healthy = np.mean(studs.label_id == 1)
+            fraction_healthy = np.mean(list(map(lambda stud: stud.label_id == 1, studs)))
 
         depth = self.depth_regressor(cropped_image)
 

@@ -27,6 +27,8 @@ class Args:
     img_save_dir: Optional[str] = None
     iou_threshold: float = 0.2
 
+GOOD_CATEGORIES = ["normal", "floating", "renewed"]
+
 
 def get_image_base64(image_path: str) -> str:
     with open(image_path, "rb") as f:
@@ -132,6 +134,8 @@ def main():
 
     images = data["images"]
     annotations = data["annotations"]
+    categories = data["categories"]
+    good_category_ids = [c["id"] for c in categories if c["name"] in GOOD_CATEGORIES]
     all_metrics = []
     for image in tqdm(images):
         image_path = test_root / image["file_name"]
@@ -156,7 +160,7 @@ def main():
             )
         )
         labels_annot = np.array(
-            [annotation["category_id"] - 1 for annotation in annotations_for_image],
+            [1 if annotation["category_id"] in good_category_ids else 0 for annotation in annotations_for_image],
             dtype=np.int32,
         )
 

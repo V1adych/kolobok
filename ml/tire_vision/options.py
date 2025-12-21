@@ -33,7 +33,7 @@ class StudPipelineOptions(BaseModel):
         le=1,
     )
     confidence_threshold: float = Field(
-        0.2,
+        0.3,
         description="Confidence threshold for stud detection. Lower values mean higher sensitivity",
         ge=0,
         le=1,
