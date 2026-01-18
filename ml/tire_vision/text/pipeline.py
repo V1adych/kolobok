@@ -47,6 +47,7 @@ class TireAnnotationPipeline:
         self.logger.info(f"SidewallSegmentator result shape: {tire_mask.shape}")
 
         self.logger.info("Running SidewallUnwrapper")
+        cv2.imwrite("tire_mask.png", tire_mask)
         unwrapped_image = self.unwrapper(image, tire_mask, options=unwrapper_options)
         self.logger.info(f"original image shape: {image.shape}, unwrapped image shape: {unwrapped_image.shape}")
 
