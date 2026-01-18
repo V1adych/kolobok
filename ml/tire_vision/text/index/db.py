@@ -3,7 +3,6 @@ import logging
 import time
 from pathlib import Path
 from typing import Optional, List, Tuple, Literal
-from dataclasses import replace
 
 import numpy as np
 from sqlalchemy import Table, Column, Integer, TEXT, MetaData, create_engine, text
@@ -23,6 +22,7 @@ metadata = MetaData()
 class TireModelDatabase:
     def __init__(self, config: IndexConfig):
         self.config = config
+        self.default_options = IndexOptions()
         self.logger = logging.getLogger("tire_db")
         self.models_table = Table(
             self.config.table_name,
@@ -56,21 +56,18 @@ class TireModelDatabase:
 
         self.logger.info("TireModelDatabase initialized successfully")
 
-    def calculate_score(self, name: str, queries: List[str]) -> List[Tuple[float, str]]:
-        metric = self._similarity_metrics[self.config.options.similarity_metric]
-        return list(map(lambda x: (metric(name, x[1]), x[0]), map(lambda x: (x, x.lower().strip()), queries)))
-
-    def get_combined_score(
+    def _get_combined_score_expr(
         self,
         model_score: pl.Series,
         brand_score: pl.Series,
         model_parent_id: pl.Series,
         brand_id: pl.Series,
+        options: IndexOptions,
     ) -> pl.Series:
         return (
-            self._comb_metrics[self.config.options.comb_metric](model_score, brand_score)
-            + pl.when(model_parent_id == brand_id).then(self.config.options.brand_model_match_bonus).otherwise(0)
-        ) / (1 + self.config.options.brand_model_match_bonus)
+            self._comb_metrics[options.comb_metric](model_score, brand_score)
+            + pl.when(model_parent_id == brand_id).then(options.brand_model_match_bonus).otherwise(0)
+        ) / (1 + options.brand_model_match_bonus)
 
     @contextmanager
     def get_session(self):
@@ -135,14 +132,14 @@ class TireModelDatabase:
 
         raise RuntimeError("Table unavailable: failed to load from database, disk cache, and RAM")
 
-    def get_scores(self, queries: List[str]):
+    def _get_scores(self, queries: List[str], options: IndexOptions) -> pl.LazyFrame:
         df_queries = pl.DataFrame(
             {
                 "query": queries,
                 "query_normalized": list(map(lambda x: x.lower().strip(), queries)),
             }
         ).lazy()
-        metric = self._similarity_metrics[self.config.options.similarity_metric]
+        metric = self._similarity_metrics[options.similarity_metric]
         df = (
             self.table.lazy()
             .join(df_queries, how="cross")
@@ -154,13 +151,13 @@ class TireModelDatabase:
         )
         return df
 
-    def get_best_matches(self, df: pl.LazyFrame, kind: Literal["model", "brand"]):
+    def _get_best_matches(self, df: pl.LazyFrame, kind: Literal["model", "brand"], options: IndexOptions) -> pl.LazyFrame:
         if kind == "brand":
             df = df.filter(pl.col("parent_id") == 0)
-            limit_matches = self.config.options.max_brand_matches
+            limit_matches = options.max_brand_matches
         elif kind == "model":
             df = df.filter(pl.col("parent_id") != 0)
-            limit_matches = self.config.options.max_model_matches
+            limit_matches = options.max_model_matches
         else:
             raise ValueError(f"Invalid kind: {kind}")
 
@@ -182,18 +179,17 @@ class TireModelDatabase:
             .with_columns(
                 pl.col(f"candidate_{kind}_score").rank(method="min", descending=True).over(f"{kind}_id").alias("rank")
             )
-            .filter(pl.col("rank") <= self.config.options.max_distinct_matches)
+            .filter(pl.col("rank") <= options.max_distinct_matches)
             .drop("rank")
             .limit(limit_matches)
         )
 
-    def query(self, queries: List[str], options: Optional[IndexOptions] = None):
-        if options is not None:
-            self.config = replace(self.config, options=options)
+    def query(self, queries: List[str], options: Optional[IndexOptions] = None) -> pl.DataFrame:
+        opts = options if options is not None else self.default_options
         suffix = "_right"
-        df = self.get_scores(queries)
-        df_model = self.get_best_matches(df, "model")
-        df_brand = self.get_best_matches(df, "brand")
+        df = self._get_scores(queries, opts)
+        df_model = self._get_best_matches(df, "model", opts)
+        df_brand = self._get_best_matches(df, "brand", opts)
 
         col_templates = ["{kind}_id", "{kind}_name", "candidate_{kind}_name", "candidate_{kind}_score"]
         cols = [col.format(kind=kind) for kind in ["model", "brand"] for col in col_templates]
@@ -203,11 +199,12 @@ class TireModelDatabase:
             df_model.join(df_brand, how="cross", suffix=suffix)
             .filter(pl.col("model_id") != pl.col("brand_id"))
             .with_columns(
-                self.get_combined_score(
+                self._get_combined_score_expr(
                     pl.col("candidate_model_score"),
                     pl.col("candidate_brand_score"),
                     pl.col("parent_id"),
                     pl.col("brand_id"),
+                    opts,
                 ).alias("combined_score"),
             )
             .select(*cols)
@@ -215,7 +212,7 @@ class TireModelDatabase:
                 [pl.col("combined_score"), pl.col("model_name").str.len_chars(), pl.col("brand_name").str.len_chars()],
                 descending=[True, True, True],
             )
-            .limit(self.config.options.max_query_results)
+            .limit(opts.max_query_results)
         )
 
         return df_model_brand.collect()

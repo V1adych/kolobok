@@ -2,7 +2,7 @@ import base64
 import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from dataclasses import replace, dataclass
+from dataclasses import dataclass
 from PIL import Image
 import io
 from traceback import format_exc
@@ -26,29 +26,21 @@ class OCRResult:
 class OCRPipeline:
     def __init__(self, config: OCRConfig):
         self.config = config
-        self.client = OpenAI(
-            base_url=self.config.base_url,
-            api_key=self.config.api_key,
-        )
+        self.default_options = OCROptions()
+        self.client = OpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
 
         self.examples_dir = Path(__file__).parent / "examples"
 
         self.logger = logging.getLogger("ocr")
         self.logger.info("TireOCR module initialized")
 
-    def extract_tire_info(
-        self,
-        images: List[np.ndarray],
-        prompt: str,
-        options: Optional[OCROptions] = None,
-    ) -> OCRResult:
+    def extract_tire_info(self, images: List[np.ndarray], prompt: str, options: Optional[OCROptions] = None) -> OCRResult:
         file_inputs = [self._prepare_image(img) for img in images]
-        if options is not None:
-            self.config = replace(self.config, options=options)
+        opts = options if options is not None else self.default_options
 
         user_prompt = self._build_user_prompt(prompt)
         try:
-            response_text = self._get_llm_response(file_inputs, user_prompt)
+            response_text = self._get_llm_response(file_inputs, user_prompt, opts)
         except APIStatusError as e:
             self.logger.error(format_exc())
             raise HTTPException(status_code=e.status_code, detail=f"OCR provider returned error: {e.body}")
@@ -56,12 +48,7 @@ class OCRPipeline:
         tire_info = self._parse_llm_response(response_text)
         return tire_info
 
-    def __call__(
-        self,
-        images: List[np.ndarray],
-        prompt: str,
-        options: Optional[OCROptions] = None,
-    ) -> Dict[str, List[str]]:
+    def __call__(self, images: List[np.ndarray], prompt: str, options: Optional[OCROptions] = None) -> Dict[str, List[str]]:
         return self.extract_tire_info(images, prompt, options=options)
 
     def _build_user_prompt(self, prompt: str) -> str:
@@ -93,27 +80,27 @@ class OCRPipeline:
 
         return messages
 
-    def _get_request_kwargs(self, messages: List[dict]) -> Dict[str, Any]:
+    def _get_request_kwargs(self, messages: List[dict], options: OCROptions) -> Dict[str, Any]:
         params = dict(
-            model=self.config.options.model_name,
+            model=options.model_name,
             messages=messages,
             stream=False,
-            temperature=self.config.options.temperature,
-            top_p=self.config.options.top_p,
-            max_tokens=self.config.options.max_completion_tokens,
-            presence_penalty=self.config.options.presence_penalty,
-            frequency_penalty=self.config.options.frequency_penalty,
+            temperature=options.temperature,
+            top_p=options.top_p,
+            max_tokens=options.max_completion_tokens,
+            presence_penalty=options.presence_penalty,
+            frequency_penalty=options.frequency_penalty,
         )
 
-        if self.config.options.providers_list:
-            params["extra_body"] = {"provider": {"only": self.config.options.providers_list}}
+        if options.providers_list:
+            params["extra_body"] = {"provider": {"only": options.providers_list}}
 
         return params
 
-    def _get_llm_response(self, file_inputs: List[str], user_prompt: str) -> Optional[str]:
+    def _get_llm_response(self, file_inputs: List[str], user_prompt: str, options: OCROptions) -> Optional[str]:
         messages = self._build_messages(file_inputs, user_prompt)
 
-        response = self.client.chat.completions.create(**self._get_request_kwargs(messages))
+        response = self.client.chat.completions.create(**self._get_request_kwargs(messages, options))
         response_text = response.choices[0].message.content
         self.logger.info(f"OCR response: {response_text}")
 

@@ -1,5 +1,4 @@
 from typing import Optional
-from dataclasses import replace
 import logging
 import time
 
@@ -14,6 +13,7 @@ from tire_vision.options import ThreadSegmentatorOptions
 class ThreadSegmentator:
     def __init__(self, config: ThreadSegmentatorConfig):
         self.config = config
+        self.default_options = ThreadSegmentatorOptions()
         self.logger = logging.getLogger("thread_segmentator")
 
         self.segmentator = OnnxSegmentator(self.config.thread_segmentator_onnx, self.config.resize_shape)
@@ -22,10 +22,9 @@ class ThreadSegmentator:
 
     def forward(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None):
         start_time = time.perf_counter()
-        if options is not None:
-            self.config = replace(self.config, options=options)
+        opts = options if options is not None else self.default_options
 
-        mask = self.segmentator(image, threshold=self.config.options.confidence_threshold)
+        mask = self.segmentator(image, threshold=opts.confidence_threshold)
 
         end_time = time.perf_counter()
         self.logger.info(f"Completed thread segmentation in {end_time - start_time} seconds")
@@ -34,11 +33,10 @@ class ThreadSegmentator:
 
     def crop_tire(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None):
         self.logger.info("Cropping tire")
-        if options is not None:
-            self.config = replace(self.config, options=options)
-        mask = self.forward(image)[..., None] // 255
+        opts = options if options is not None else self.default_options
+        mask = self.forward(image, options=opts)[..., None] // 255
 
-        if np.count_nonzero(mask) < self.config.options.min_tire_pixels:
+        if np.count_nonzero(mask) < opts.min_tire_pixels:
             self.logger.warning("Tire not found on the image, or it is too small")
             return None
 
@@ -51,8 +49,8 @@ class ThreadSegmentator:
         x_min, x_max = coords[1].min(), coords[1].max()
 
         height, width = image.shape[:2]
-        pad_h = int(height * self.config.options.padding_frac)
-        pad_w = int(width * self.config.options.padding_frac)
+        pad_h = int(height * opts.padding_frac)
+        pad_w = int(width * opts.padding_frac)
 
         y_min = max(0, y_min - pad_h)
         y_max = min(height, y_max + pad_h)

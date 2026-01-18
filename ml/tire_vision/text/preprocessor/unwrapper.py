@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import Optional
 
 import numpy as np
@@ -11,9 +10,11 @@ from tire_vision.options import SidewallUnwrapperOptions
 
 import logging
 
+
 class SidewallUnwrapper:
     def __init__(self, config: SidewallUnwrapperConfig):
         self.config = config
+        self.default_options = SidewallUnwrapperOptions()
         self.logger = logging.getLogger("sidewall_unwrapper")
         clip_limit = self.config.clahe_clip_limit
         tile_grid_size = self.config.clahe_tile_grid_size
@@ -46,8 +47,7 @@ class SidewallUnwrapper:
 
     def forward(self, image: np.ndarray, mask: np.ndarray, options: Optional[SidewallUnwrapperOptions] = None):
         h, w = image.shape[:2]
-        if options is not None:
-            self.config = replace(self.config, options=options)
+        opts = options if options is not None else self.default_options
         mask_cc = self._postprocess_mask(mask)
         (x, y), (major_axis, minor_axis), angle = self._ellipse_params_from_mask(mask_cc)
         r_minor = minor_axis / 2.0
@@ -62,7 +62,7 @@ class SidewallUnwrapper:
             scale = np.array([[1, 0, 0], [0, scale_y, y * (1 - scale_y)]], dtype=np.float32)
             image = cv2.warpAffine(image, scale, (w, h), flags=cv2.INTER_CUBIC)
 
-        dst_size = self.config.options.polar_unwrap_size
+        dst_size = opts.polar_unwrap_size
         polar_image = cv2.warpPolar(image, dst_size, (x, y), r_minor, flags=cv2.INTER_CUBIC)
 
         polar_image = cv2.rotate(polar_image, cv2.ROTATE_90_COUNTERCLOCKWISE)

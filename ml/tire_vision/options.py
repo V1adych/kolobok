@@ -17,7 +17,7 @@ class StudPipelineOptions(BaseModel):
         0.15, description="Non-maximum suppression (NMS) IoU threshold for merging overlapping stud detections. Lower values mean higher merging rate", ge=0, le=1
     )
     confidence_threshold: float = Field(0.3, description="Confidence threshold for stud detection. Lower values mean higher sensitivity", ge=0, le=1)
-
+    filter_frac: float = Field(0.0, description="Fraction of farthest studs to filter out. Larger values mean more studs are filtered out", ge=0, le=1)
 
 class SidewallSegmentatorOptions(BaseModel):
     confidence_threshold: float = Field(0.5, description="Confidence threshold for tire sidewall detection. Lower values mean higher sensitivity", ge=0, le=1)

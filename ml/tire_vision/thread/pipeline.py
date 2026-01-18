@@ -1,5 +1,4 @@
 from typing import Optional
-from dataclasses import replace
 import time
 
 import numpy as np
@@ -23,21 +22,19 @@ class TireThreadPipeline:
 
         self.logger = logging.getLogger("tire_thread_pipeline")
 
-    def __call__(
-        self, image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None
-    ) -> TireThreadPipelineResult:
+    def __call__(self, image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None) -> TireThreadPipelineResult:
         self.logger.info("Starting tire thread pipeline")
         start_time = time.perf_counter()
-        if options is not None:
-            self.segmentator.config = replace(self.segmentator.config, options=options.thread_segmentator_options)
-            self.stud_pipeline.config = replace(self.stud_pipeline.config, options=options.stud_pipeline_options)
 
-        cropped_image = self.segmentator.crop_tire(image)
+        segmentator_options = options.thread_segmentator_options if options is not None else None
+        stud_options = options.stud_pipeline_options if options is not None else None
+
+        cropped_image = self.segmentator.crop_tire(image, options=segmentator_options)
         if cropped_image is None:
             self.logger.error("Tire not found on the image, or it is too small")
             raise HTTPException(status_code=500, detail="Tire not found on the image, or it is too small")
 
-        studs = self.stud_pipeline(image)
+        studs = self.stud_pipeline(image, options=stud_options)
         fraction_healthy = None
         if len(studs) > 0:
             fraction_healthy = np.mean(list(map(lambda stud: stud.label_id == 1, studs)))
