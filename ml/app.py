@@ -53,7 +53,7 @@ def analyze_thread(
     image_with_annotations = add_annotations(image, result.studs)
     img_str = numpy_to_base64(image_with_annotations)
 
-    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, image=img_str)
+    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, fraction_healthy=result.fraction_healthy, image=img_str)
 
 
 @app.post("/api/v1/extract_information", response_model=ExtractInformationResponse)
@@ -68,9 +68,7 @@ def extract_information(
 
     result = extract_tire_info(image, options=req.annotation_options)
 
-    return ExtractInformationResponse(
-        strings=result.strings, tire_size=result.tire_size, index_results=result.index_results
-    )
+    return ExtractInformationResponse(strings=result.strings, tire_size=result.tire_size, index_results=result.index_results)
 
 
 @app.post("/api/v1/bin/analyze_thread", response_model=ThreadAnalysisResponse)
@@ -90,7 +88,7 @@ async def analyze_thread_bin(
 
     img_str = numpy_to_base64(image_with_annotations)
 
-    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, image=img_str)
+    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, fraction_healthy=result.fraction_healthy, image=img_str)
 
 
 @app.post("/api/v1/bin/extract_information", response_model=ExtractInformationResponse)
@@ -107,6 +105,4 @@ async def extract_information_bin(
 
     result = extract_tire_info(image_np, options=options)
 
-    return ExtractInformationResponse(
-        strings=result.strings, tire_size=result.tire_size, index_results=result.index_results
-    )
+    return ExtractInformationResponse(strings=result.strings, tire_size=result.tire_size, index_results=result.index_results)

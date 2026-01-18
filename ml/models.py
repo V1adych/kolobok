@@ -54,6 +54,7 @@ class TireThreadPipelineResult(BaseModel):
 class ThreadAnalysisResponse(BaseModel):
     thread_depth: float = Field(description="Estimated depth of a thread")
     studs: List[Stud] = Field(description="List of detected studs")
+    fraction_healthy: Union[float, None] = Field(description="Fraction of healthy studs, None if no studs are present", ge=0, le=1)
     image: str = Field(description="base64 encoded image with annotations")
     perf_stats: PerfStats = Field(PerfStats.default(), description="Performance statistics")
 
