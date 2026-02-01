@@ -27,7 +27,7 @@ class Args:
     img_save_dir: Optional[str] = None
     iou_threshold: float = 0.2
 
-GOOD_CATEGORIES = ["normal", "floating", "renewed"]
+GOOD_CATEGORIES = ["normal", "floating"]
 
 
 def get_image_base64(image_path: str) -> str:
@@ -37,7 +37,7 @@ def get_image_base64(image_path: str) -> str:
 
 def get_predictions(url: str, image_path: str, token: str) -> List[Dict]:
     image_base64 = get_image_base64(image_path)
-    response = requests.post(url, json={"image": image_base64}, headers={"Authorization": f"Bearer {token}"})
+    response = requests.post(url, json={"image": image_base64, "thread_options": {"stud_pipeline_options": {"confidence_threshold": 0.4}}}, headers={"Authorization": f"Bearer {token}"})
 
     if response.status_code != 200:
         logging.error(f"Error getting predictions for {image_path}: {response.status_code}")

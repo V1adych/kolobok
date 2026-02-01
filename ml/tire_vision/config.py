@@ -13,11 +13,13 @@ META_TO_LABEL_MAPPING = {
     1: 0,
     2: 1,
     3: 1,
+    4: 2,
 }
 
 LABEL_MAPPING = {
     0: "broken",
     1: "healthy",
+    2: "indistinguishable"
 }
 
 META_MAPPING = {
@@ -25,6 +27,7 @@ META_MAPPING = {
     1: "broken",
     2: "floating",
     3: "healthy",
+    4: "indistinguishable"
 }
 
 META_COLORS = {
@@ -32,6 +35,7 @@ META_COLORS = {
     1: (0, 255, 255),
     2: (255, 0, 0),
     3: (0, 255, 0),
+    4: (200, 150, 100)
 }
 
 SYSTEM_OCR_PROMPT = """You are an expert OCR model specializing in reading text from images of tires. 
@@ -108,7 +112,7 @@ class ThreadSegmentatorConfig:
 @dataclass(frozen=True)
 class StudPipelineConfig:
     spike_detector_onnx: str = "onnx/stud_detector.onnx"
-    resize_shape: Tuple[int, int] = (560, 560)
+    resize_shape: Tuple[int, int] = (576, 576)
 
 
 @dataclass(frozen=True)

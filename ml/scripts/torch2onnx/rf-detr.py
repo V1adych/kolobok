@@ -5,7 +5,7 @@ from typing import Tuple
 import tyro
 import torch
 
-from rfdetr import RFDETRBase
+from rfdetr import RFDETRMedium
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -16,7 +16,7 @@ logger = logging.getLogger("torch2onnx")
 class Args:
     ckpt_path: str
     shape: Tuple[int, int] = (560, 560)
-    num_classes: int = 5
+    num_classes: int = 6
 
 
 @torch.no_grad()
@@ -25,7 +25,7 @@ def main():
 
     logger.info(f"Converting {args.ckpt_path} to ONNX...")
     ckpt = torch.load(args.ckpt_path, map_location="cpu", weights_only=False)
-    model = RFDETRBase()
+    model = RFDETRMedium()
     model.model_config.device = "cpu"
     model.model.model.to("cpu")
     model.model.device = "cpu"

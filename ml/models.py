@@ -39,15 +39,17 @@ class PerfStats(BaseModel):
 
 class Stud(BaseModel):
     box: Tuple[int, int, int, int] = Field(description="Bounding box of a stud (cx, cy, w, h)")
-    label_id: int = Field(description="Label ID of a stud (0: broken, 1: healthy)", le=1, ge=0)
-    label: str = Field(description="Label of a stud (broken or healthy)")
-    meta_label: str = Field(description="Extended label of a stud (absent, broken, floating, healthy)")
-    meta_label_id: int = Field(description="Extended label ID of a stud (0: absent, 1: broken, 2: floating, 3: healthy)", le=3, ge=0)
+    label_id: int = Field(description="Label ID of a stud (0: broken, 1: healthy, 2: indistinguishable)", le=2, ge=0)
+    label: str = Field(description="Label of a stud (broken, healthy, indistinguishable)")
+    meta_label: str = Field(description="Extended label of a stud (absent, broken, floating, healthy, indistinguishable)")
+    meta_label_id: int = Field(description="Extended label ID of a stud (0: absent, 1: broken, 2: floating, 3: healthy, 4: indistinguishable)", le=4, ge=0)
 
 
 class TireThreadPipelineResult(BaseModel):
     depth: float
     studs: List[Stud]
+    num_studs: int = Field(description="Number of studs detected on the image", ge=0)
+    num_studs_classified: int = Field(description="Number of studs that were classified and participated in the calculation of the fraction_healthy", ge=0)
     fraction_healthy: Union[float, None] = Field(description="Fraction of healthy studs, None if no studs are present", ge=0, le=1)
 
 
