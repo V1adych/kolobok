@@ -39,10 +39,8 @@ class PerfStats(BaseModel):
 
 class Stud(BaseModel):
     box: Tuple[int, int, int, int] = Field(description="Bounding box of a stud (cx, cy, w, h)")
-    label_id: int = Field(description="Label ID of a stud (0: broken, 1: healthy, 2: indistinguishable)", le=2, ge=0)
-    label: str = Field(description="Label of a stud (broken, healthy, indistinguishable)")
-    meta_label: str = Field(description="Extended label of a stud (absent, broken, floating, healthy, indistinguishable)")
-    meta_label_id: int = Field(description="Extended label ID of a stud (0: absent, 1: broken, 2: floating, 3: healthy, 4: indistinguishable)", le=4, ge=0)
+    label: str = Field(description="Extended label of a stud (absent, broken, floating, healthy, indistinguishable)")
+    label_id: int = Field(description="Extended label ID of a stud (0: absent, 1: broken, 2: floating, 3: healthy, 4: indistinguishable)", le=4, ge=0)
 
 
 class TireThreadPipelineResult(BaseModel):
