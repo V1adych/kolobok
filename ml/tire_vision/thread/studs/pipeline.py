@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import onnxruntime as ort
 
-from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts, META_MAPPING, META_TO_LABEL_MAPPING, LABEL_MAPPING
+from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts, STUD_LABELS, STUD_VOLUMES, STUD_HEALTH_SCORES
 from tire_vision.options import StudPipelineOptions
 from models import Stud
 
@@ -151,16 +151,13 @@ class StudPipeline:
         boxes_cxcywh = boxes_cxcywh.astype(np.int32)
 
         labels = labels - 1
-
-        def to_stud(box: Tuple[int, int, int, int], meta_label_id: int) -> Stud:
-            meta_label = META_MAPPING[meta_label_id]
-            label_id = META_TO_LABEL_MAPPING[meta_label_id]
-            label = LABEL_MAPPING[label_id]
-            return Stud(box=box, label_id=label_id, label=label, meta_label=meta_label, meta_label_id=meta_label_id)
-
-        result = list(map(to_stud, boxes_cxcywh.tolist(), labels.tolist()))
+        studs = list(map(lambda box, label_id: Stud(box=box, label_id=label_id, label=STUD_LABELS[label_id]), boxes_cxcywh.tolist(), labels.tolist()))
+        num_studs_classified = sum(map(lambda stud: STUD_VOLUMES[stud.label_id], studs))
+        fraction_healthy = 0
+        if num_studs_classified > 0:
+            fraction_healthy = sum(map(lambda stud: STUD_HEALTH_SCORES[stud.label_id], studs)) / num_studs_classified
 
         latency = time.perf_counter() - start_time
         self.logger.info(f"Stud pipeline completed in {latency:.4f} seconds")
 
-        return result
+        return studs, num_studs_classified, fraction_healthy

@@ -28,6 +28,7 @@ class Args:
     iou_threshold: float = 0.2
 
 GOOD_CATEGORIES = ["normal", "floating"]
+GOOD_LABELS = ["healthy", "floating"]
 
 
 def get_image_base64(image_path: str) -> str:
@@ -161,6 +162,10 @@ def main():
         )
         labels_annot = np.array(
             [1 if annotation["category_id"] in good_category_ids else 0 for annotation in annotations_for_image],
+            dtype=np.int32,
+        )
+        labels_pred = np.array(
+            [1 if spike["label"] in GOOD_LABELS else 0 for spike in studs],
             dtype=np.int32,
         )
 

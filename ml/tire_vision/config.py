@@ -8,35 +8,10 @@ import onnxruntime as ort
 
 DEVICE = "cpu"
 
-META_TO_LABEL_MAPPING = {
-    0: 0,
-    1: 0,
-    2: 1,
-    3: 1,
-    4: 2,
-}
-
-LABEL_MAPPING = {
-    0: "broken",
-    1: "healthy",
-    2: "indistinguishable"
-}
-
-META_MAPPING = {
-    0: "absent",
-    1: "broken",
-    2: "floating",
-    3: "healthy",
-    4: "indistinguishable"
-}
-
-META_COLORS = {
-    0: (0, 0, 255),
-    1: (0, 255, 255),
-    2: (255, 0, 0),
-    3: (0, 255, 0),
-    4: (200, 150, 100)
-}
+STUD_LABELS = {0: "absent", 1: "broken", 2: "floating", 3: "healthy", 4: "indistinguishable"}
+STUD_VOLUMES = {0: 1, 1: 1, 2: 1, 3: 1, 4: 0}
+STUD_HEALTH_SCORES = {0: 0.0, 1: 0.0, 2: 0.5, 3: 1.0, 4: 0.0}
+STUD_COLORS = {0: (0, 0, 255), 1: (0, 255, 255), 2: (255, 0, 0), 3: (0, 255, 0), 4: (200, 150, 100)}
 
 SYSTEM_OCR_PROMPT = """You are an expert OCR model specializing in reading text from images of tires. 
 Your tasks will involve reading, parsing, extracting, and analyzing information from the images of wheel tires
@@ -111,8 +86,8 @@ class ThreadSegmentatorConfig:
 
 @dataclass(frozen=True)
 class StudPipelineConfig:
-    spike_detector_onnx: str = "onnx/stud_detector.onnx"
-    resize_shape: Tuple[int, int] = (576, 576)
+    spike_detector_onnx: str = "onnx/stud_detector.ft_14.new.onnx"
+    resize_shape: Tuple[int, int] = (560, 560)
 
 
 @dataclass(frozen=True)

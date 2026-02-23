@@ -34,15 +34,7 @@ class TireThreadPipeline:
             self.logger.error("Tire not found on the image, or it is too small")
             raise HTTPException(status_code=500, detail="Tire not found on the image, or it is too small")
 
-        studs = self.stud_pipeline(image, options=stud_options)
-        num_studs = len(studs)
-
-        classified_studs = list(filter(lambda stud: stud.label_id != 2, studs))
-        num_studs_classified = len(classified_studs)
-        
-        fraction_healthy = None
-        if num_studs_classified > 0:
-            fraction_healthy = np.mean(list(map(lambda stud: stud.label_id == 1, classified_studs)))
+        studs, num_studs_classified, fraction_healthy = self.stud_pipeline(image, options=stud_options)
 
         depth = self.depth_regressor(cropped_image)
 
@@ -52,7 +44,7 @@ class TireThreadPipeline:
         result = TireThreadPipelineResult(
             depth=depth, 
             studs=studs, 
-            num_studs=num_studs,
+            num_studs=len(studs),
             num_studs_classified=num_studs_classified,
             fraction_healthy=fraction_healthy
         )
