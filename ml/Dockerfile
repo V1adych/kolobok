@@ -4,12 +4,11 @@ WORKDIR /app
 
 COPY requirements.txt .
 
-RUN pip install -r requirements.txt --no-cache-dir
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 COPY . .
 
-RUN --mount=type=secret,id=envfile \
-    sh -c 'set -e && set -a && . /run/secrets/envfile && set +a && python -m scripts.init'
+RUN --mount=type=secret,id=envfile sh -c 'set -e && set -a && . /run/secrets/envfile && set +a && python -m scripts.init'
 
 ENV GUNICORN_WORKERS=1
 
