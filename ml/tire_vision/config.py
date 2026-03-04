@@ -107,7 +107,7 @@ class ThreadSegmentatorConfig:
 
 @dataclass(frozen=True)
 class StudPipelineConfig:
-    spike_detector_onnx: str = "onnx/stud_detector.onnx"
+    spike_detector_onnx: str = "onnx/stud_detector.old.onnx"
     resize_shape: Tuple[int, int] = (560, 560)
 
 
