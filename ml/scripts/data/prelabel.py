@@ -28,8 +28,7 @@ categories = [
     {"id": 2, "name": "broken", "supercategory": "spikes"},
     {"id": 3, "name": "floating", "supercategory": "spikes"},
     {"id": 4, "name": "normal", "supercategory": "spikes"},
-    {"id": 5, "name": "renewed", "supercategory": "spikes"},
-    {"id": 6, "name": "unsure", "supercategory": "spikes"},
+    {"id": 5, "name": "unsure", "supercategory": "spikes"},
 ]
 
 category_mapping = {
@@ -37,6 +36,7 @@ category_mapping = {
     "healthy": 4,
     "broken": 2,
     "floating": 3,
+    "indistinguishable": 5,
 }
 
 
@@ -117,7 +117,7 @@ def main():
         local_i = global_i if args.batch_size <= 0 else (global_i % args.batch_size)
 
         image = cv2.imread(str(image_path), cv2.IMREAD_COLOR_RGB)
-        studs = pipe(image)
+        studs, _, _ = pipe(image)
         pbar.set_postfix(num_studs=len(studs))
 
         save_path = part_dir / f"{args.prefix_name}_{local_i}.png"
@@ -133,7 +133,7 @@ def main():
                 }
             )
             for stud in studs:
-                category_id = category_mapping[stud.meta_label]
+                category_id = category_mapping[stud.label]
                 xc, yc, w, h = stud.box
                 x_min = int(round(xc - w / 2))
                 y_min = int(round(yc - h / 2))
