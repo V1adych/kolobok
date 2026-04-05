@@ -2,13 +2,14 @@ from dataclasses import dataclass
 from pathlib import Path
 import sys
 import json
+import hashlib
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 import tyro
 import cv2
 from tqdm import tqdm
-from tire_vision.thread.studs.pipeline import StudPipeline, StudPipelineConfig
+from tire_vision.thread.studs.pipeline import StudPipeline, StudPipelineConfig, StudPipelineOptions
 
 
 @dataclass
@@ -20,6 +21,7 @@ class Args:
     dry_run: bool = False
     # If > 0, split outputs into dst_dir/part0, part1, ... each with <= batch_size images + its own annotations.json
     batch_size: int = 0
+    confidence_threshold: float = 0.25
 
 
 categories = [
@@ -68,6 +70,14 @@ def _finalize_part(part_dir: Path, coco_annot: dict) -> None:
         json.dump(coco_annot, f)
 
 
+def _hash_image_pixels(image) -> bytes:
+    h = hashlib.sha256()
+    h.update(str(image.shape).encode("utf-8"))
+    h.update(str(image.dtype).encode("utf-8"))
+    h.update(image.tobytes())
+    return h.digest()
+
+
 def main():
     args = tyro.cli(Args)
     src_dir = Path(args.src_dir)
@@ -83,18 +93,23 @@ def main():
     if args.dry_run:
         images = images[:10]
 
-    msg = f"Will label {len(images)} images"
+    total_images = len(images)
+    msg = f"Will label {total_images} images"
     if args.dry_run:
         msg += " [DRY RUN]"
     if args.batch_size > 0:
         msg += f" (batch_size={args.batch_size})"
     print(msg)
 
-    pbar = tqdm(total=len(images), desc="Labeling images")
+    pbar = tqdm(total=total_images, desc="Labeling images")
 
     part_idx = 0
     coco_annot = _new_coco()
     num_annotations = 0
+    seen_hashes: set[bytes] = set()
+    skipped_duplicates = 0
+    read_failed = 0
+    saved_images = 0
 
     for global_i, image_path in enumerate(images):
         # determine which part we are in
@@ -111,19 +126,33 @@ def main():
                 coco_annot = _new_coco()
                 num_annotations = 0
 
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR_RGB)
+        if image is None:
+            read_failed += 1
+            pbar.set_postfix(read_failed=read_failed, dup=skipped_duplicates, saved=saved_images)
+            pbar.update(1)
+            continue
+
+        image_hash = _hash_image_pixels(image)
+        if image_hash in seen_hashes:
+            skipped_duplicates += 1
+            pbar.set_postfix(dup=skipped_duplicates, saved=saved_images)
+            pbar.update(1)
+            continue
+        seen_hashes.add(image_hash)
+
+        studs, _, _ = pipe(image, options=StudPipelineOptions(confidence_threshold=args.confidence_threshold))
+        saved_images += 1
+        pbar.set_postfix(num_studs=len(studs), dup=skipped_duplicates, saved=saved_images)
+
         part_dir = _part_dir(dst_dir, args.batch_size, part_idx)
 
         # local index within part is used as image_id (and for naming)
         local_i = global_i if args.batch_size <= 0 else (global_i % args.batch_size)
 
-        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR_RGB)
-        studs, _, _ = pipe(image)
-        pbar.set_postfix(num_studs=len(studs))
-
-        save_path = part_dir / f"{args.prefix_name}_{local_i}.png"
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-
         if not args.dry_run:
+            save_path = part_dir / f"{args.prefix_name}_{local_i}.png"
+            save_path.parent.mkdir(parents=True, exist_ok=True)
             coco_annot["images"].append(
                 {
                     "id": local_i,
@@ -160,6 +189,8 @@ def main():
     if not args.dry_run:
         last_part_dir = _part_dir(dst_dir, args.batch_size, part_idx)
         _finalize_part(last_part_dir, coco_annot)
+
+    print(f"{saved_images}/{total_images}")
 
 
 if __name__ == "__main__":
