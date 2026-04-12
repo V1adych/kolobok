@@ -11,6 +11,13 @@ class ThreadSegmentatorOptions(BaseModel):
     min_tire_pixels: int = Field(96, description="Detected regions must have at least this many pixels to be considered a tire", gt=0)
 
 
+class RTMDetSegmentatorOptions(BaseModel):
+    confidence_threshold: float = Field(0.2, description="Confidence threshold for tire instance detections. Lower values mean higher sensitivity", le=1, ge=0)
+    nms_iou_threshold: float = Field(0.5, description="Non-maximum suppression IoU threshold for tire instance detections. Lower values mean higher merging rate", le=1, ge=0)
+    pre_topk: int = Field(200, description="Maximum number of top-scoring dense detections to keep before NMS", gt=0)
+    mask_threshold: float = Field(0.5, description="Threshold applied to decoded tire mask probabilities", le=1, ge=0)
+
+
 class StudPipelineOptions(BaseModel):
     max_detections: int = Field(300, description="Maximum possible number of studs to detect", gt=0, le=300)
     nms_iou_threshold: float = Field(
@@ -18,6 +25,7 @@ class StudPipelineOptions(BaseModel):
     )
     confidence_threshold: float = Field(0.3, description="Confidence threshold for stud detection. Lower values mean higher sensitivity", ge=0, le=1)
     filter_frac: float = Field(0.0, description="Fraction of farthest studs to filter out. Larger values mean more studs are filtered out", ge=0, le=1)
+
 
 class SidewallSegmentatorOptions(BaseModel):
     confidence_threshold: float = Field(0.5, description="Confidence threshold for tire sidewall detection. Lower values mean higher sensitivity", ge=0, le=1)

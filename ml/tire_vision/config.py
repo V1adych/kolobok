@@ -85,6 +85,14 @@ class ThreadSegmentatorConfig:
 
 
 @dataclass(frozen=True)
+class RTMDetSegmentatorConfig:
+    detector_onnx: str = "onnx/thread_segmentator_detector.onnx"
+    mask_decoder_onnx: str = "onnx/thread_segmentator_mask_decoder.onnx"
+    resize_shape: Tuple[int, int] = (640, 640)
+    max_mask_instances: int = 16
+
+
+@dataclass(frozen=True)
 class StudPipelineConfig:
     spike_detector_onnx: str = "onnx/stud_detector.ft_15_best.onnx"
     resize_shape: Tuple[int, int] = (560, 560)
