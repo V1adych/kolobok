@@ -11,7 +11,7 @@ class ThreadImageRequest(BaseModel):
     image: str = Field(description="base64 encoded image")
     thread_options: Optional[TireThreadPipelineOptions] = Field(
         None,
-        description="Thread options. confidence_threshold: smaller → more detections; padding_frac: crop padding around tire.",
+        description="Thread options for tire segmentation, stud grouping, and depth estimation.",
     )
 
 
@@ -43,18 +43,18 @@ class Stud(BaseModel):
     label_id: int = Field(description="Extended label ID of a stud (0: absent, 1: broken, 2: floating, 3: healthy, 4: indistinguishable)", le=4, ge=0)
 
 
-class TireThreadPipelineResult(BaseModel):
-    depth: float
+class TireResult(BaseModel):
+    box: Tuple[int, int, int, int] = Field(description="Bounding box of a tire (cx, cy, w, h)")
+    score: float = Field(description="Confidence score of the tire detector")
+    thread_depth: float = Field(description="Estimated depth of a thread for this tire")
     studs: List[Stud]
-    num_studs: int = Field(description="Number of studs detected on the image", ge=0)
-    num_studs_classified: int = Field(description="Number of studs that were classified and participated in the calculation of the fraction_healthy", ge=0)
-    fraction_healthy: Union[float, None] = Field(description="Fraction of healthy studs, None if no studs are present", ge=0, le=1)
+    num_studs: int = Field(description="Number of studs assigned to this tire", ge=0)
+    num_studs_classified: int = Field(description="Number of studs on this tire that participated in the fraction_healthy calculation", ge=0)
+    fraction_healthy: Union[float, None] = Field(description="Fraction of healthy studs for this tire, None if no studs are classified", ge=0, le=1)
 
 
 class ThreadAnalysisResponse(BaseModel):
-    thread_depth: float = Field(description="Estimated depth of a thread")
-    studs: List[Stud] = Field(description="List of detected studs")
-    fraction_healthy: Union[float, None] = Field(description="Fraction of healthy studs, None if no studs are present", ge=0, le=1)
+    tires: List[TireResult] = Field(description="List of detected tires with grouped studs and depth estimation")
     image: str = Field(description="base64 encoded image with annotations")
     perf_stats: PerfStats = Field(PerfStats.default(), description="Performance statistics")
 

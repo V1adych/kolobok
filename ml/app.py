@@ -9,6 +9,7 @@ import numpy as np
 from models import (
     ThreadImageRequest,
     AnnotationImageRequest,
+    TireResult,
     ThreadAnalysisResponse,
     ExtractInformationResponse,
 )
@@ -40,6 +41,24 @@ logging.basicConfig(
 logger = logging.getLogger("app")
 
 
+def build_thread_response(result, image: np.ndarray) -> ThreadAnalysisResponse:
+    image_with_annotations = add_annotations(image, result.tires)
+    img_str = numpy_to_base64(image_with_annotations)
+    tires = [
+        TireResult(
+            box=tire.box,
+            score=tire.score,
+            thread_depth=tire.depth,
+            studs=tire.studs,
+            num_studs=tire.num_studs,
+            num_studs_classified=tire.num_studs_classified,
+            fraction_healthy=tire.fraction_healthy,
+        )
+        for tire in result.tires
+    ]
+    return ThreadAnalysisResponse(tires=tires, image=img_str)
+
+
 @app.post("/api/v1/analyze_thread", response_model=ThreadAnalysisResponse)
 @get_perf_logger(logger, async_mode=False)
 def analyze_thread(
@@ -50,10 +69,7 @@ def analyze_thread(
 
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))).convert("RGB"))
     result = get_thread_stats(image, options=req.thread_options)
-    image_with_annotations = add_annotations(image, result.studs)
-    img_str = numpy_to_base64(image_with_annotations)
-
-    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, fraction_healthy=result.fraction_healthy, image=img_str)
+    return build_thread_response(result, image)
 
 
 @app.post("/api/v1/extract_information", response_model=ExtractInformationResponse)
@@ -83,12 +99,8 @@ async def analyze_thread_bin(
 
     image_np = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
     result = get_thread_stats(image_np, options=options)
-    image_with_annotations = add_annotations(image_np, result.studs)
     logger.info("/api/v1/bin/analyze_thread: thread pipeline completed")
-
-    img_str = numpy_to_base64(image_with_annotations)
-
-    return ThreadAnalysisResponse(thread_depth=result.depth, studs=result.studs, fraction_healthy=result.fraction_healthy, image=img_str)
+    return build_thread_response(result, image_np)
 
 
 @app.post("/api/v1/bin/extract_information", response_model=ExtractInformationResponse)

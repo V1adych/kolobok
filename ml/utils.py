@@ -9,8 +9,7 @@ import cv2
 from fastapi import Form, Security, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from tire_vision.thread.pipeline import TireThreadPipeline, TireThreadPipelineResult
-from tire_vision.thread.studs.pipeline import Stud
+from tire_vision.thread.pipeline import AnalyzedTire, TireThreadPipeline, TireThreadPipelineResult
 from tire_vision.text.pipeline import TireAnnotationPipeline, AnnotationResult
 from tire_vision.config import TireVisionConfig, STUD_COLORS
 from tire_vision.options import TireThreadPipelineOptions, TireAnnotationPipelineOptions
@@ -35,7 +34,7 @@ def parse_thread_options(
     options: Optional[str] = Form(
         None,
         description=(
-            "JSON-encoded TireThreadPipelineOptions (confidence_threshold, nms_iou_threshold, max_detections, padding_frac)."
+            "JSON-encoded TireThreadPipelineOptions for tire segmentation, stud detection, and ambiguous stud resolution."
         ),
     ),
 ) -> Optional[TireThreadPipelineOptions]:
@@ -85,12 +84,29 @@ def extract_tire_info(image: np.ndarray, options: Optional[TireAnnotationPipelin
     return result
 
 
-def add_annotations(image: np.ndarray, annotations: List[Stud]) -> np.ndarray:
+def add_annotations(image: np.ndarray, annotations: List[AnalyzedTire]) -> np.ndarray:
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    for annotation in annotations:
+    tire_colors = [(255, 0, 0), (0, 180, 255), (255, 0, 255), (0, 255, 0)]
+    for idx, annotation in enumerate(annotations):
         x, y, w, h = annotation.box
-        color = STUD_COLORS[annotation.label_id]
-        cv2.rectangle(image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), color, 2)
+        tire_color = tire_colors[idx % len(tire_colors)]
+        mask = annotation.mask.astype(bool)
+        image_bgr[mask] = (0.8 * image_bgr[mask] + 0.2 * np.array(tire_color, dtype=np.uint8)).astype(np.uint8)
+        cv2.rectangle(image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), tire_color, 3)
+        cv2.putText(
+            image_bgr,
+            f"tire {annotation.score:.2f}",
+            (x - w // 2, max(0, y - h // 2 - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            tire_color,
+            2,
+            cv2.LINE_AA,
+        )
+        for stud in annotation.studs:
+            sx, sy, sw, sh = stud.box
+            stud_color = STUD_COLORS[stud.label_id]
+            cv2.rectangle(image_bgr, (sx - sw // 2, sy - sh // 2), (sx + sw // 2, sy + sh // 2), stud_color, 2)
 
     image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 

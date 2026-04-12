@@ -62,7 +62,7 @@ class RTMDetMaskDecoderWrapper(nn.Module):
 
     def forward(self, mask_feat: torch.Tensor, kernels: torch.Tensor, priors: torch.Tensor, valid: torch.Tensor):
         logits = self.head._mask_predict_by_feat_single(mask_feat[0], kernels[0], priors[0])
-        return (logits.sigmoid() * valid[0, :, None, None].to(logits.dtype))[None]
+        return (logits * valid[0, :, None, None].to(logits.dtype))[None]
 
 
 @dataclass
@@ -138,7 +138,7 @@ def main():
         opset_version=ONNX_OPSET_VERSION,
         do_constant_folding=True,
         input_names=["mask_feat", "kernels", "priors", "valid"],
-        output_names=["mask_probs"],
+        output_names=["mask_logits"],
     )
 
     logger.info("RTMDet ONNX export completed successfully")

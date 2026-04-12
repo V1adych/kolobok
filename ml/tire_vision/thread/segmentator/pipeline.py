@@ -5,33 +5,26 @@ from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
-import onnxruntime as ort
 
-from tire_vision.config import RTMDetSegmentatorConfig, ort_opts, ort_providers
-from tire_vision.options import RTMDetSegmentatorOptions
-from tire_vision.utils import nms
+from tire_vision.config import ThreadSegmentatorConfig
+from tire_vision.options import ThreadSegmentatorOptions
+from tire_vision.thread.segmentator.model import ThreadSegmentatorModel
+from tire_vision.utils import nms, xyxy2cxcywh
 
 
 @dataclass(frozen=True)
 class TireInstance:
-    box_xyxy: Tuple[int, int, int, int]
+    box: Tuple[int, int, int, int]
     score: float
     mask: np.ndarray
 
 
-@dataclass(frozen=True)
-class RTMDetSegmentatorResult:
-    image_size: Tuple[int, int]
-    tires: List[TireInstance]
-
-
-class RTMDetSegmentatorPipeline:
-    def __init__(self, config: RTMDetSegmentatorConfig):
+class ThreadSegmentator:
+    def __init__(self, config: ThreadSegmentatorConfig):
         self.config = config
-        self.default_options = RTMDetSegmentatorOptions()
-        self.det_session = ort.InferenceSession(config.detector_onnx, providers=ort_providers, sess_options=ort_opts)
-        self.mask_session = ort.InferenceSession(config.mask_decoder_onnx, providers=ort_providers, sess_options=ort_opts)
-        self.logger = logging.getLogger("rtmdet_segmentator_pipeline")
+        self.default_options = ThreadSegmentatorOptions()
+        self.model = ThreadSegmentatorModel(config)
+        self.logger = logging.getLogger("thread_segmentator")
 
     def _preprocess(self, image: np.ndarray) -> np.ndarray:
         image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -44,7 +37,7 @@ class RTMDetSegmentatorPipeline:
         scores: np.ndarray,
         kernels: np.ndarray,
         priors: np.ndarray,
-        options: RTMDetSegmentatorOptions,
+        options: ThreadSegmentatorOptions,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         num_classes = scores.shape[1]
         scores_flat = scores.reshape(-1)
@@ -63,7 +56,7 @@ class RTMDetSegmentatorPipeline:
         scores: np.ndarray,
         kernels: np.ndarray,
         priors: np.ndarray,
-        options: RTMDetSegmentatorOptions,
+        options: ThreadSegmentatorOptions,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         keep = scores >= options.confidence_threshold
         return boxes[keep], scores[keep], kernels[keep], priors[keep]
@@ -74,7 +67,7 @@ class RTMDetSegmentatorPipeline:
         scores: np.ndarray,
         kernels: np.ndarray,
         priors: np.ndarray,
-        options: RTMDetSegmentatorOptions,
+        options: ThreadSegmentatorOptions,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         keep = nms(boxes, scores, options.nms_iou_threshold)[: self.config.max_mask_instances]
         return boxes[keep], scores[keep], kernels[keep], priors[keep]
@@ -89,16 +82,62 @@ class RTMDetSegmentatorPipeline:
         keep = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
         return boxes[keep], scores[keep], kernels[keep], priors[keep]
 
-    def forward(self, image: np.ndarray, options: Optional[RTMDetSegmentatorOptions] = None) -> RTMDetSegmentatorResult:
+    def _decode_masks(
+        self,
+        mask_feat: np.ndarray,
+        kernels: np.ndarray,
+        priors: np.ndarray,
+    ) -> np.ndarray:
+        num_instances = len(kernels)
+        num_params = kernels.shape[-1]
+        kernels_pad = np.zeros((1, self.config.max_mask_instances, num_params), dtype=np.float32)
+        priors_pad = np.zeros((1, self.config.max_mask_instances, 4), dtype=np.float32)
+        valid = np.zeros((1, self.config.max_mask_instances), dtype=np.float32)
+        kernels_pad[0, :num_instances] = kernels
+        priors_pad[0, :num_instances] = priors
+        valid[0, :num_instances] = 1.0
+        mask_logits = self.model.decode_masks(mask_feat, kernels_pad, priors_pad, valid)
+        return mask_logits[0, :num_instances]
+
+    def _to_tire_instances(
+        self,
+        image_shape: Tuple[int, int],
+        boxes: np.ndarray,
+        scores: np.ndarray,
+        mask_logits: np.ndarray,
+        options: ThreadSegmentatorOptions,
+    ) -> List[TireInstance]:
+        orig_h, orig_w = image_shape
+        scale_x = orig_w / self.config.resize_shape[0]
+        scale_y = orig_h / self.config.resize_shape[1]
+        tires = []
+
+        for box, score, mask_logit in zip(boxes, scores, mask_logits):
+            box_xyxy = np.array([box[0] * scale_x, box[1] * scale_y, box[2] * scale_x, box[3] * scale_y], dtype=np.float32)
+            box_xyxy[0::2] = np.clip(box_xyxy[0::2], 0, orig_w)
+            box_xyxy[1::2] = np.clip(box_xyxy[1::2], 0, orig_h)
+
+            logits_resized = cv2.resize(mask_logit, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+            probs = 1.0 / (1.0 + np.exp(-logits_resized))
+            mask = probs >= options.mask_threshold
+            if int(np.count_nonzero(mask)) < options.min_tire_pixels:
+                continue
+
+            box_cxcywh = xyxy2cxcywh(box_xyxy[None])[0]
+            tires.append(
+                TireInstance(
+                    box=tuple(np.round(box_cxcywh).astype(np.int32).tolist()),
+                    score=float(score),
+                    mask=mask,
+                )
+            )
+
+        return tires
+
+    def forward(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None) -> List[TireInstance]:
         start_time = time.perf_counter()
         opts = options if options is not None else self.default_options
-        orig_h, orig_w = image.shape[:2]
-        detector_inputs = self._preprocess(image)
-
-        boxes, scores, kernels, priors, mask_feat = self.det_session.run(
-            ["boxes", "scores", "kernels", "priors", "mask_feat"],
-            {"input": detector_inputs},
-        )
+        boxes, scores, kernels, priors, mask_feat = self.model.detect(self._preprocess(image))
         boxes = boxes[0]
         scores = scores[0]
         kernels = kernels[0]
@@ -108,50 +147,33 @@ class RTMDetSegmentatorPipeline:
         boxes, scores, kernels, priors = self._confidence_filter(boxes, scores, kernels, priors, opts)
         boxes, scores, kernels, priors = self._nms_filter(boxes, scores, kernels, priors, opts)
         boxes, scores, kernels, priors = self._filter_invalid(boxes, scores, kernels, priors)
+        if len(boxes) == 0:
+            return []
 
-        num_instances = len(boxes)
-        if num_instances == 0:
-            return RTMDetSegmentatorResult(image_size=(orig_h, orig_w), tires=[])
-
-        max_instances = self.config.max_mask_instances
-        num_params = kernels.shape[-1]
-        kernels_pad = np.zeros((1, max_instances, num_params), dtype=np.float32)
-        priors_pad = np.zeros((1, max_instances, 4), dtype=np.float32)
-        valid = np.zeros((1, max_instances), dtype=np.float32)
-        kernels_pad[0, :num_instances] = kernels
-        priors_pad[0, :num_instances] = priors
-        valid[0, :num_instances] = 1.0
-
-        (mask_probs,) = self.mask_session.run(
-            ["mask_probs"],
-            {
-                "mask_feat": mask_feat.astype(np.float32),
-                "kernels": kernels_pad,
-                "priors": priors_pad,
-                "valid": valid,
-            },
-        )
-
-        scale_x = orig_w / self.config.resize_shape[0]
-        scale_y = orig_h / self.config.resize_shape[1]
-        tires = []
-        for box, score, mask_prob in zip(boxes, scores, mask_probs[0, :num_instances]):
-            x1, y1, x2, y2 = box
-            box_xyxy = np.array([x1 * scale_x, y1 * scale_y, x2 * scale_x, y2 * scale_y], dtype=np.float32)
-            box_xyxy[0::2] = np.clip(box_xyxy[0::2], 0, orig_w)
-            box_xyxy[1::2] = np.clip(box_xyxy[1::2], 0, orig_h)
-            mask = cv2.resize(mask_prob, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR) >= opts.mask_threshold
-            tires.append(
-                TireInstance(
-                    box_xyxy=tuple(np.round(box_xyxy).astype(np.int32).tolist()),
-                    score=float(score),
-                    mask=mask,
-                )
-            )
-
+        tires = self._to_tire_instances(image.shape[:2], boxes, scores, self._decode_masks(mask_feat, kernels, priors), opts)
         latency = time.perf_counter() - start_time
-        self.logger.info(f"RTMDet segmentator pipeline completed in {latency:.4f} seconds")
-        return RTMDetSegmentatorResult(image_size=(orig_h, orig_w), tires=tires)
+        self.logger.info(f"Thread segmentation completed in {latency:.4f} seconds")
+        return tires
 
-    def __call__(self, image: np.ndarray, options: Optional[RTMDetSegmentatorOptions] = None) -> RTMDetSegmentatorResult:
+    def crop_tire(self, image: np.ndarray, tire: TireInstance, options: Optional[ThreadSegmentatorOptions] = None) -> Optional[np.ndarray]:
+        opts = options if options is not None else self.default_options
+        mask = tire.mask[..., None].astype(np.uint8)
+        if np.count_nonzero(mask) < opts.min_tire_pixels:
+            return None
+
+        background = np.full_like(image, 255)
+        image_masked = (image * mask) + (background * (1 - mask))
+        coords = np.where(mask[..., 0] > 0)
+        y_min, y_max = coords[0].min(), coords[0].max()
+        x_min, x_max = coords[1].min(), coords[1].max()
+        height, width = image.shape[:2]
+        pad_h = int(height * opts.padding_frac)
+        pad_w = int(width * opts.padding_frac)
+        y_min = max(0, y_min - pad_h)
+        y_max = min(height, y_max + pad_h)
+        x_min = max(0, x_min - pad_w)
+        x_max = min(width, x_max + pad_w)
+        return image_masked[y_min:y_max, x_min:x_max]
+
+    def __call__(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None) -> List[TireInstance]:
         return self.forward(image, options=options)

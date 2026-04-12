@@ -3,19 +3,16 @@ from pydantic import BaseModel, Field
 
 SimilarityMetric = Literal["levenshtein", "jaro_winkler"]
 CombMetric = Literal["product", "arithmetic_mean", "harmonic_mean", "geometric_mean", "euclidean"]
+AmbiguousStudResolutionStrategy = Literal["all", "none", "highest"]
 
 
 class ThreadSegmentatorOptions(BaseModel):
-    confidence_threshold: float = Field(0.5, description="Confidence threshold for tire thread detection. Lower values mean higher sensitivity", le=1, ge=0)
-    padding_frac: float = Field(0.01, description="Additional padding around the detected thread. Higher the value, more padding is added around the thread", ge=0)
-    min_tire_pixels: int = Field(96, description="Detected regions must have at least this many pixels to be considered a tire", gt=0)
-
-
-class RTMDetSegmentatorOptions(BaseModel):
     confidence_threshold: float = Field(0.2, description="Confidence threshold for tire instance detections. Lower values mean higher sensitivity", le=1, ge=0)
     nms_iou_threshold: float = Field(0.5, description="Non-maximum suppression IoU threshold for tire instance detections. Lower values mean higher merging rate", le=1, ge=0)
     pre_topk: int = Field(200, description="Maximum number of top-scoring dense detections to keep before NMS", gt=0)
-    mask_threshold: float = Field(0.5, description="Threshold applied to decoded tire mask probabilities", le=1, ge=0)
+    mask_threshold: float = Field(0.5, description="Threshold applied to decoded tire mask probabilities after resizing logits to original image size", le=1, ge=0)
+    padding_frac: float = Field(0.01, description="Additional padding around each detected tire crop for depth regression", ge=0)
+    min_tire_pixels: int = Field(96, description="Detected tire masks must have at least this many pixels in the original image", gt=0)
 
 
 class StudPipelineOptions(BaseModel):
@@ -76,3 +73,6 @@ class TireAnnotationPipelineOptions(BaseModel):
 class TireThreadPipelineOptions(BaseModel):
     thread_segmentator_options: ThreadSegmentatorOptions = ThreadSegmentatorOptions()
     stud_pipeline_options: StudPipelineOptions = StudPipelineOptions()
+    ambiguous_stud_resolution_strategy: AmbiguousStudResolutionStrategy = Field(
+        "highest", description='How to assign a stud whose center falls into multiple tire masks: "all", "none", or "highest"'
+    )

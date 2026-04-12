@@ -1,64 +1,34 @@
-from typing import Optional
-import logging
-import time
-
 import numpy as np
+import onnxruntime as ort
+
+from tire_vision.config import ThreadSegmentatorConfig, ort_opts, ort_providers
 
 
-from tire_vision.config import ThreadSegmentatorConfig
-from tire_vision.segmentation.onnx import OnnxSegmentator
-from tire_vision.options import ThreadSegmentatorOptions
-
-
-class ThreadSegmentator:
+class ThreadSegmentatorModel:
     def __init__(self, config: ThreadSegmentatorConfig):
         self.config = config
-        self.default_options = ThreadSegmentatorOptions()
-        self.logger = logging.getLogger("thread_segmentator")
+        self.detector_session = ort.InferenceSession(config.detector_onnx, providers=ort_providers, sess_options=ort_opts)
+        self.mask_decoder_session = ort.InferenceSession(config.mask_decoder_onnx, providers=ort_providers, sess_options=ort_opts)
 
-        self.segmentator = OnnxSegmentator(self.config.thread_segmentator_onnx, self.config.resize_shape)
+    def detect(self, image_input: np.ndarray):
+        return self.detector_session.run(
+            ["boxes", "scores", "kernels", "priors", "mask_feat"],
+            {"input": image_input},
+        )
 
-        self.logger.info("ThreadSegmentator initialized successfully")
-
-    def forward(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None):
-        start_time = time.perf_counter()
-        opts = options if options is not None else self.default_options
-
-        mask = self.segmentator(image, threshold=opts.confidence_threshold)
-
-        end_time = time.perf_counter()
-        self.logger.info(f"Completed thread segmentation in {end_time - start_time} seconds")
-
-        return mask
-
-    def crop_tire(self, image: np.ndarray, options: Optional[ThreadSegmentatorOptions] = None):
-        self.logger.info("Cropping tire")
-        opts = options if options is not None else self.default_options
-        mask = self.forward(image, options=opts)[..., None] // 255
-
-        if np.count_nonzero(mask) < opts.min_tire_pixels:
-            self.logger.warning("Tire not found on the image, or it is too small")
-            return None
-
-        background = np.full_like(image, 255)
-
-        image_masked = (image * mask) + (background * (1 - mask))
-
-        coords = np.where(mask > 0)
-        y_min, y_max = coords[0].min(), coords[0].max()
-        x_min, x_max = coords[1].min(), coords[1].max()
-
-        height, width = image.shape[:2]
-        pad_h = int(height * opts.padding_frac)
-        pad_w = int(width * opts.padding_frac)
-
-        y_min = max(0, y_min - pad_h)
-        y_max = min(height, y_max + pad_h)
-        x_min = max(0, x_min - pad_w)
-        x_max = min(width, x_max + pad_w)
-
-        cropped_image = image_masked[y_min:y_max, x_min:x_max]
-
-        self.logger.info(f"Cropped image shape: {cropped_image.shape}")
-
-        return cropped_image
+    def decode_masks(
+        self,
+        mask_feat: np.ndarray,
+        kernels: np.ndarray,
+        priors: np.ndarray,
+        valid: np.ndarray,
+    ) -> np.ndarray:
+        return self.mask_decoder_session.run(
+            ["mask_logits"],
+            {
+                "mask_feat": mask_feat.astype(np.float32),
+                "kernels": kernels.astype(np.float32),
+                "priors": priors.astype(np.float32),
+                "valid": valid.astype(np.float32),
+            },
+        )[0]
