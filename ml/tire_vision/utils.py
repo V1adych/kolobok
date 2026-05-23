@@ -55,5 +55,5 @@ def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> np.ndarr
 
 
 def expit(x: np.ndarray) -> np.ndarray:
-    x_clipped = np.clip(x, -500, 500)
+    x_clipped = np.clip(x, -100, 50)
     return np.where(x_clipped < 0, np.exp(x_clipped) / (1 + np.exp(x_clipped)), 1 / (1 + np.exp(-x_clipped)))

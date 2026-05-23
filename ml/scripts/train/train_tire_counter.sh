@@ -9,8 +9,8 @@ from roboflow import download_dataset
 os.environ['ROBOFLOW_API_KEY'] = 'BRdDttL8wwHFrA27Xv07'
 
 dataset = download_dataset(
-    'https://app.roboflow.com/koloboktyresegmentation/tire_count/4',
-    'coco',
+    'https://app.roboflow.com/koloboktyresegmentation/tire_count/5',
+    'coco-mmdetection',
     location='data/tire_count'
 )
 "

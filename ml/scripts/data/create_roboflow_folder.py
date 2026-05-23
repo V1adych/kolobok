@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
-import shutil
 
+import cv2
 import numpy as np
 import tyro
 from tqdm import tqdm
@@ -35,7 +35,11 @@ def main():
     for idx, image_path in enumerate(pbar):
         target_path = output_dir / f"{args.prefix_name}{idx:06d}.jpg"
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(image_path, target_path)
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Failed to load image: {image_path}")
+        if not cv2.imwrite(str(target_path), image):
+            raise ValueError(f"Failed to write image: {target_path}")
 
 
 if __name__ == "__main__":
