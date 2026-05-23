@@ -7,7 +7,7 @@ import onnxruntime as ort
 
 from tire_vision.config import StudPipelineConfig, ort_providers, ort_opts, STUD_LABELS, STUD_VOLUMES, STUD_HEALTH_SCORES
 from tire_vision.options import StudPipelineOptions
-from tire_vision.utils import cxcywh2xyxy, nms, xyxy2cxcywh
+from tire_vision.utils import cxcywh2xyxy, nms, xyxy2cxcywh, expit
 from models import Stud
 
 import logging
@@ -78,7 +78,7 @@ class StudPipeline:
         boxes_cxcywh, logits, labels = self._global_topk(boxes_cxcywh, logits, opts)
         boxes_xyxy = cxcywh2xyxy(boxes_cxcywh)
 
-        scores = 1.0 / (1.0 + np.exp(-logits))
+        scores = expit(logits)
         boxes_xyxy, scores, labels = self._confidence_filter(boxes_xyxy, scores, labels, opts)
         boxes_xyxy, scores, labels = self._nms_filter(boxes_xyxy, scores, labels, opts)
         boxes_xyxy, labels = self._filter_invalid(boxes_xyxy, labels)

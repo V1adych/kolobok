@@ -13,7 +13,7 @@ from torch import nn
 from mmdet.registry import MODELS
 
 DEFAULT_CONFIG_PATH = "submodules/mmdetection/configs/rtmdet/tire_count.py"
-ONNX_OPSET_VERSION = 17
+ONNX_OPSET_VERSION = 20
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("torch2onnx")

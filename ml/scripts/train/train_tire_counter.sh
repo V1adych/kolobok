@@ -9,7 +9,7 @@ from roboflow import download_dataset
 os.environ['ROBOFLOW_API_KEY'] = 'BRdDttL8wwHFrA27Xv07'
 
 dataset = download_dataset(
-    'https://app.roboflow.com/koloboktyresegmentation/tire_count/2',
+    'https://app.roboflow.com/koloboktyresegmentation/tire_count/4',
     'coco',
     location='data/tire_count'
 )

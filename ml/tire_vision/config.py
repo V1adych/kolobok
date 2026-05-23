@@ -80,8 +80,8 @@ ort_providers = ["CPUExecutionProvider"]
 
 @dataclass(frozen=True)
 class ThreadSegmentatorConfig:
-    detector_onnx: str = "onnx/thread_segmentator_detector.onnx"
-    mask_decoder_onnx: str = "onnx/thread_segmentator_mask_decoder.onnx"
+    detector_onnx: str = "onnx/thread_detector.onnx"
+    mask_decoder_onnx: str = "onnx/thread_mask_decoder.onnx"
     resize_shape: Tuple[int, int] = (640, 640)
     max_mask_instances: int = 16
 

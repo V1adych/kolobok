@@ -5,7 +5,7 @@ import os
 import cv2
 import numpy as np
 
-from tire_vision.thread.segmentator.model import ThreadSegmentator
+from tire_vision.thread.segmentator.pipeline import ThreadSegmentator
 from tire_vision.config import ThreadSegmentatorConfig
 
 SRC_DIR = Path("data/dataset_synthetic")
@@ -33,7 +33,10 @@ def main():
         try:
             image, label = _get_image_and_label(image_path)
 
-            result = segmentator.crop_tire(image)
+            tires = segmentator(image)
+            if len(tires) == 0:
+                raise ValueError("No tires detected")
+            result = segmentator.crop_tire(image, tires[0])
 
             save_path = DEST_DIR / f"{len(os.listdir(DEST_DIR))}_{label}.png"
 

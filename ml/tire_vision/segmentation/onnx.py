@@ -5,6 +5,7 @@ import cv2
 import onnxruntime as ort
 
 from tire_vision.config import ort_providers, ort_opts
+from tire_vision.utils import expit
 
 
 class OnnxSegmentator:
@@ -29,7 +30,7 @@ class OnnxSegmentator:
         logits = self.session.run(None, {"input": resized_image})[0]
 
         logits_squeezed = np.squeeze(logits, axis=(0, 1))
-        probs = 1 / (1 + np.exp(-logits_squeezed))
+        probs = expit(logits_squeezed)
         resize_mask_shape = (w, h) if self.resize_mask_shape is None else self.resize_mask_shape
         probs = cv2.resize(probs, resize_mask_shape, interpolation=cv2.INTER_LINEAR)
 

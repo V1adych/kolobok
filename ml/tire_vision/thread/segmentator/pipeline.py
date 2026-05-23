@@ -9,7 +9,7 @@ import numpy as np
 from tire_vision.config import ThreadSegmentatorConfig
 from tire_vision.options import ThreadSegmentatorOptions
 from tire_vision.thread.segmentator.model import ThreadSegmentatorModel
-from tire_vision.utils import nms, xyxy2cxcywh
+from tire_vision.utils import nms, xyxy2cxcywh, expit
 
 
 @dataclass(frozen=True)
@@ -118,7 +118,7 @@ class ThreadSegmentator:
             box_xyxy[1::2] = np.clip(box_xyxy[1::2], 0, orig_h)
 
             logits_resized = cv2.resize(mask_logit, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
-            probs = 1.0 / (1.0 + np.exp(-logits_resized))
+            probs = expit(logits_resized)
             mask = probs >= options.mask_threshold
             if int(np.count_nonzero(mask)) < options.min_tire_pixels:
                 continue

@@ -7,8 +7,8 @@ AmbiguousStudResolutionStrategy = Literal["all", "none", "highest"]
 
 
 class ThreadSegmentatorOptions(BaseModel):
-    confidence_threshold: float = Field(0.2, description="Confidence threshold for tire instance detections. Lower values mean higher sensitivity", le=1, ge=0)
-    nms_iou_threshold: float = Field(0.5, description="Non-maximum suppression IoU threshold for tire instance detections. Lower values mean higher merging rate", le=1, ge=0)
+    confidence_threshold: float = Field(0.5, description="Confidence threshold for tire instance detections. Lower values mean higher sensitivity", le=1, ge=0)
+    nms_iou_threshold: float = Field(0.2, description="Non-maximum suppression IoU threshold for tire instance detections. Lower values mean higher merging rate", le=1, ge=0)
     pre_topk: int = Field(200, description="Maximum number of top-scoring dense detections to keep before NMS", gt=0)
     mask_threshold: float = Field(0.5, description="Threshold applied to decoded tire mask probabilities after resizing logits to original image size", le=1, ge=0)
     padding_frac: float = Field(0.01, description="Additional padding around each detected tire crop for depth regression", ge=0)

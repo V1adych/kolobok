@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 
 from tire_vision.config import DepthRegressorConfig, ort_providers, ort_opts
+from tire_vision.utils import expit
 
 
 class DepthRegressor:
@@ -19,7 +20,7 @@ class DepthRegressor:
         image_input = resized_image.transpose(2, 0, 1)[None].astype(np.float32) / 255
 
         result = self.session.run(None, {"input": image_input})[0]
-        result_scaled = 10 / (1 + np.exp(-np.squeeze(result)))
+        result_scaled = 10 * expit(np.squeeze(result))
 
         return float(result_scaled)
 
