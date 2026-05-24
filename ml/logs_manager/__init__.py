@@ -1,30 +1,47 @@
 from functools import wraps
-from typing import Callable, Dict, Any
+from typing import Any, Callable, Dict
 import asyncio
+import base64
+import io
 import os
 
 import numpy as np
+from PIL import Image
 
-from logs_manager.mgr import LogsMgr, serialize_exception
+from logs_manager.mgr import LogsMgr
 from logs_manager.config import LogsConfig
 
 config = LogsConfig()
 mgr = LogsMgr(config)
-loop = asyncio.get_event_loop()
 
 
-def log_wrapper(func: Callable[[np.ndarray], Dict[str, Any]]):
+def _schedule_upload(image: np.ndarray, options: Dict[str, Any]) -> None:
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, mgr.upload_log, image, options)
+
+
+def log_endpoint(func: Callable) -> Callable:
     @wraps(func)
-    def wrapper(image: np.ndarray, *args, **kwargs):
-        if os.environ.get("DISABLE_LOGGING", None) is not None:
-            return func(image, *args, **kwargs)
-        try:
-            result = func(image, *args, **kwargs)
-            loop.run_in_executor(None, mgr.upload_log, image, result, func.__name__)
-            return result
-        except Exception as e:
-            error_log = serialize_exception(e)
-            loop.run_in_executor(None, mgr.upload_log, image, error_log, f"{func.__name__}_error")
-            raise e
+    async def wrapper(*args, **kwargs):
+        if os.environ.get("DISABLE_LOGGING") is not None:
+            return await func(*args, **kwargs)
+
+        req = kwargs.get("req")
+        if req is not None:
+            data = {key: value for key, value in req.model_dump().items() if key != "image"}
+            result = await func(*args, **kwargs)
+            raw = base64.b64decode(req.image)
+            image = np.array(Image.open(io.BytesIO(raw)).convert("RGB"))
+        else:
+            upload = kwargs["image"]
+            contents = await upload.read()
+            await upload.seek(0)
+            options = kwargs.get("options")
+            data = options.model_dump() if options is not None else {}
+            result = await func(*args, **kwargs)
+            image = np.array(Image.open(io.BytesIO(contents)).convert("RGB"))
+
+        _schedule_upload(image, data)
+        return result
 
     return wrapper

@@ -5,16 +5,11 @@ import logging
 import io
 from PIL import Image
 import json
-import traceback
 
 import boto3
 import numpy as np
 
 from logs_manager.config import LogsConfig
-
-
-def serialize_exception(e: Exception) -> Dict[str, Any]:
-    return {"type": type(e).__name__, "detail": str(e), "traceback": traceback.format_exc()}
 
 
 class LogsMgr:
@@ -41,21 +36,16 @@ class LogsMgr:
     def _upload_json(self, data: Dict[str, Any], path: str):
         self.s3.put_object(Body=json.dumps(data).encode("utf-8"), Bucket=self.bucket_name, Key=path)
 
-    def _upload_txt(self, data: str, path: str):
-        self.s3.put_object(Body=data.encode("utf-8"), Bucket=self.bucket_name, Key=path)
-
-    def upload_log(self, image: np.ndarray, json_data: Dict[str, Any], metadata: str = ""):
+    def upload_log(self, image: np.ndarray, json_data: Dict[str, Any]):
         cur_time = datetime.datetime.now().isoformat()
         directory = self.prefix / cur_time
         self.logger.info(f"Uploading log to {directory}")
 
         image_path = str(directory / "image.png")
         json_path = str(directory / "data.json")
-        metadata_path = str(directory / "metadata.txt")
 
         self._upload_image(image, image_path)
         self._upload_json(json_data, json_path)
-        self._upload_txt(metadata, metadata_path)
 
         log_path = f"{self.config.endpoint_url}/{self.bucket_name}/{self.prefix}/{cur_time}"
 

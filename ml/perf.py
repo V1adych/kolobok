@@ -18,27 +18,13 @@ def _attach_stats(obj, start_time, end_time):
     raise ValueError("Object has no perf_stats attribute")
 
 
-def get_perf_logger(logger: logging.Logger, async_mode: bool = False):
+def get_perf_logger(logger: logging.Logger):
     def decorator(func):
-        if async_mode:
-
-            @wraps(func)
-            async def async_wrapper(*args, **kwargs):
-                start_time = datetime.now()
-                logger.info(f"{func.__name__}: starting")
-                result = await func(*args, **kwargs)
-                end_time = datetime.now()
-                logger.info(f"{func.__name__}: completed in {end_time - start_time}")
-                _attach_stats(result, start_time, end_time)
-                return result
-
-            return async_wrapper
-
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             start_time = datetime.now()
             logger.info(f"{func.__name__}: starting")
-            result = func(*args, **kwargs)
+            result = await func(*args, **kwargs)
             end_time = datetime.now()
             logger.info(f"{func.__name__}: completed in {end_time - start_time}")
             _attach_stats(result, start_time, end_time)

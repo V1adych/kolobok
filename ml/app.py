@@ -25,6 +25,7 @@ from utils import (
     numpy_to_base64,
 )
 from perf import get_perf_logger
+from logs_manager import log_endpoint
 from tire_vision.options import TireThreadPipelineOptions, TireAnnotationPipelineOptions
 
 import logging
@@ -60,11 +61,9 @@ def build_thread_response(result, image: np.ndarray) -> ThreadAnalysisResponse:
 
 
 @app.post("/api/v1/analyze_thread", response_model=ThreadAnalysisResponse)
-@get_perf_logger(logger, async_mode=False)
-def analyze_thread(
-    req: ThreadImageRequest,
-    token: str = Depends(verify_token),
-):
+@get_perf_logger(logger)
+@log_endpoint
+async def analyze_thread(req: ThreadImageRequest, token: str = Depends(verify_token)):
     validate_image(req.image)
 
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))).convert("RGB"))
@@ -73,11 +72,9 @@ def analyze_thread(
 
 
 @app.post("/api/v1/extract_information", response_model=ExtractInformationResponse)
-@get_perf_logger(logger, async_mode=False)
-def extract_information(
-    req: AnnotationImageRequest,
-    token: str = Depends(verify_token),
-):
+@get_perf_logger(logger)
+@log_endpoint
+async def extract_information(req: AnnotationImageRequest, token: str = Depends(verify_token)):
     validate_image(req.image)
 
     image = np.array(Image.open(io.BytesIO(base64.b64decode(req.image))).convert("RGB"))
@@ -88,7 +85,8 @@ def extract_information(
 
 
 @app.post("/api/v1/bin/analyze_thread", response_model=ThreadAnalysisResponse)
-@get_perf_logger(logger, async_mode=True)
+@get_perf_logger(logger)
+@log_endpoint
 async def analyze_thread_bin(
     image: UploadFile = File(...),
     options: Optional[TireThreadPipelineOptions] = Depends(parse_thread_options),
@@ -104,7 +102,8 @@ async def analyze_thread_bin(
 
 
 @app.post("/api/v1/bin/extract_information", response_model=ExtractInformationResponse)
-@get_perf_logger(logger, async_mode=True)
+@get_perf_logger(logger)
+@log_endpoint
 async def extract_information_bin(
     image: UploadFile = File(...),
     options: Optional[TireAnnotationPipelineOptions] = Depends(parse_annotation_options),

@@ -14,29 +14,19 @@ from tire_vision.text.pipeline import TireAnnotationPipeline, AnnotationResult
 from tire_vision.config import TireVisionConfig, STUD_COLORS
 from tire_vision.options import TireThreadPipelineOptions, TireAnnotationPipelineOptions
 
-from logs_manager import log_wrapper
-
 
 cfg = TireVisionConfig()
 thread_pipeline = TireThreadPipeline(cfg.thread_pipeline_config)
 annotation_pipeline = TireAnnotationPipeline(cfg.annotation_pipeline_config)
 
 
-bearer_scheme = HTTPBearer(
-    scheme_name="Bearer",
-    description="Bearer token authentication",
-)
+bearer_scheme = HTTPBearer(scheme_name="Bearer", description="Bearer token authentication")
 
 API_TOKEN = os.environ["API_TOKEN"]
 
 
 def parse_thread_options(
-    options: Optional[str] = Form(
-        None,
-        description=(
-            "JSON-encoded TireThreadPipelineOptions for tire segmentation, stud detection, and ambiguous stud resolution."
-        ),
-    ),
+    options: Optional[str] = Form(None, description=("JSON-encoded TireThreadPipelineOptions for tire segmentation, stud detection, and ambiguous stud resolution.")),
 ) -> Optional[TireThreadPipelineOptions]:
     if options is None:
         return None
@@ -70,14 +60,12 @@ def verify_token(
     return token
 
 
-@log_wrapper
 def get_thread_stats(image: np.ndarray, options: Optional[TireThreadPipelineOptions] = None) -> TireThreadPipelineResult:
     result = thread_pipeline(image, options=options)
 
     return result
 
 
-@log_wrapper
 def extract_tire_info(image: np.ndarray, options: Optional[TireAnnotationPipelineOptions] = None) -> AnnotationResult:
     result = annotation_pipeline(image, options=options)
 
