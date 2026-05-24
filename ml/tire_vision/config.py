@@ -95,7 +95,7 @@ class StudPipelineConfig:
 @dataclass(frozen=True)
 class DepthRegressorConfig:
     depth_regressor_onnx: str = "onnx/depth_regressor.onnx"
-    resize_shape: Tuple[int, int] = (512, 512)
+    resize_shape: Tuple[int, int] = (320, 320)
 
 
 @dataclass(frozen=True)

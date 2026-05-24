@@ -11,6 +11,7 @@ import torch
 import tyro
 from albumentations.pytorch import ToTensorV2
 from torch import nn
+from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 from torchvision.models import (
     DenseNet201_Weights,
@@ -33,6 +34,10 @@ class Args:
     data_dir: str
     val_fraction: float = 0.1
     model_name: str = "effnet_v2_l"
+    as_classification: bool = False
+    num_bins: int = 17
+    bins_min: float = 1.0
+    bins_max: float = 9.0
     size: int = 640
     batch_size: int = 16
     num_epochs: int = 25
@@ -46,7 +51,7 @@ class Args:
     gradient_clip_algorithm: str = "norm"
 
 
-def get_model(model_name: str) -> nn.Module:
+def get_regression_model(model_name: str) -> nn.Module:
     if model_name == "swin_s":
         model = swin_s(weights=Swin_S_Weights.DEFAULT)
         model.head = nn.Linear(768, 1)
@@ -69,13 +74,67 @@ def get_model(model_name: str) -> nn.Module:
         raise ValueError(f"Unknown model name: {model_name}")
     return model
 
+def get_classification_model(model_name: str, num_bins: int) -> nn.Module:
+    if model_name == "swin_s":
+        model = swin_s(weights=Swin_S_Weights.DEFAULT)
+        model.head = nn.Linear(768, num_bins)
+    elif model_name == "swin_v2_t":
+        model = swin_v2_t(weights=Swin_V2_T_Weights.DEFAULT)
+        model.head = nn.Linear(768, num_bins)
+    elif model_name == "effnet_b7":
+        model = efficientnet_b7(weights=EfficientNet_B7_Weights.DEFAULT)
+        model.classifier[1] = nn.Linear(2560, num_bins)
+    elif model_name == "effnet_v2_l":
+        model = efficientnet_v2_l(weights=EfficientNet_V2_L_Weights.DEFAULT)
+        model.classifier[1] = nn.Linear(1280, num_bins)
+    elif model_name == "densenet201":
+        model = densenet201(weights=DenseNet201_Weights.DEFAULT)
+        model.classifier = nn.Linear(1920, num_bins)
+    elif model_name == "googlenet":
+        model = googlenet(weights=GoogLeNet_Weights.DEFAULT)
+        model.fc = nn.Linear(1024, num_bins)
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
+    return model
+
+
+def get_model(model_name: str, is_classification: bool = False, num_bins: int = 11) -> nn.Module:
+    if is_classification:
+        return get_classification_model(model_name, num_bins)
+    else:
+        return get_regression_model(model_name)
+
+def twohot_encode_labels(labels: torch.Tensor, bins: torch.Tensor) -> torch.Tensor:
+    assert torch.all(labels >= bins[0]) and torch.all(labels <= bins[-1])
+    left_idx = torch.bucketize(labels, bins, right=True) - 1
+    left_idx = torch.clamp(left_idx, min=0)
+    right_idx = torch.clamp(left_idx + 1, max=bins.numel() - 1)
+
+    left_bins = bins[left_idx]
+    right_bins = bins[right_idx]
+    denom = right_bins - left_bins
+
+    left_weights = torch.ones_like(labels, dtype=torch.float32)
+    right_weights = torch.zeros_like(labels, dtype=torch.float32)
+
+    interp_mask = denom > 0
+    right_weights[interp_mask] = (labels[interp_mask] - left_bins[interp_mask]) / denom[interp_mask]
+    left_weights[interp_mask] = 1.0 - right_weights[interp_mask]
+
+    encoded = torch.zeros(labels.numel(), bins.numel(), dtype=torch.float32, device=labels.device)
+    encoded[torch.arange(labels.numel(), device=labels.device), left_idx] += left_weights
+    encoded[torch.arange(labels.numel(), device=labels.device), right_idx] += right_weights
+    return encoded
+
+
 
 class ThreadDepthDataset(Dataset):
-    def __init__(self, image_paths: list[str], labels: list[float], transform):
+    def __init__(self, image_paths: list[str], labels: list[float], transform, depth_range: tuple[float, float]):
         super().__init__()
         self.transform = transform
         self.image_paths = image_paths
         self.labels = labels
+        self.depth_range = depth_range
 
     def __len__(self) -> int:
         return len(self.image_paths)
@@ -88,6 +147,7 @@ class ThreadDepthDataset(Dataset):
         if self.transform is not None:
             image = self.transform(image=image)["image"]
         label = torch.tensor(self.labels[idx], dtype=torch.float32)
+        label = torch.clip(label, min=self.depth_range[0], max=self.depth_range[1])
         return image, label
 
 
@@ -170,8 +230,14 @@ class DepthRegressionModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(vars(args))
         self.args = args
-        self.model = get_model(args.model_name)
+        self.model = get_model(args.model_name, is_classification=args.as_classification, num_bins=args.num_bins)
         self.criterion = nn.HuberLoss(delta=1.0)
+        self.min_value = args.bins_min
+        self.max_value = args.bins_max
+        if args.as_classification:
+            self.register_buffer("bins", torch.linspace(args.bins_min, args.bins_max, args.num_bins, dtype=torch.float32))
+        else:
+            self.bins = None
 
     @staticmethod
     def _metrics(outputs: torch.Tensor, labels: torch.Tensor):
@@ -181,13 +247,30 @@ class DepthRegressionModule(pl.LightningModule):
         return mae, frac_le1
 
     def forward(self, x: torch.Tensor):
-        return self.model(x)
+        y = self.model(x)
+        # if not self.args.as_classification:
+        #     y = F.sigmoid(y) * (self.max_value - self.min_value) + self.min_value
+        return y
+
+    def predict_from_outputs(self, outputs: torch.Tensor) -> torch.Tensor:
+        if self.args.as_classification:
+            probs = torch.softmax(outputs, dim=1)
+            return torch.sum(probs * self.bins.unsqueeze(0), dim=1, keepdim=True)
+
+        return outputs.clip(self.min_value, self.max_value)
+
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
+        return self.predict_from_outputs(self(x))
 
     def training_step(self, batch, batch_idx):
         images, labels = batch
         labels = labels.unsqueeze(1)
-        preds = self(images)
-        loss = self.criterion(preds, labels)
+        outputs = self(images)
+        preds = self.predict_from_outputs(outputs)
+        if self.args.as_classification:
+            loss = F.cross_entropy(outputs, twohot_encode_labels(labels.squeeze(1), self.bins))
+        else:
+            loss = self.criterion(outputs, labels)
         mae, frac_le1 = self._metrics(preds, labels)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_mae", mae, on_step=False, on_epoch=True, prog_bar=True)
@@ -197,8 +280,12 @@ class DepthRegressionModule(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, labels = batch
         labels = labels.unsqueeze(1)
-        preds = self(images)
-        loss = self.criterion(preds, labels)
+        outputs = self(images)
+        preds = self.predict_from_outputs(outputs)
+        if self.args.as_classification:
+            loss = F.cross_entropy(outputs, twohot_encode_labels(labels.squeeze(1), self.bins))
+        else:
+            loss = self.criterion(outputs, labels)
         mae, frac_le1 = self._metrics(preds, labels)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val_mae", mae, on_step=False, on_epoch=True, prog_bar=True)
@@ -219,8 +306,8 @@ def main():
         args.val_fraction,
         args.seed,
     )
-    train_ds = ThreadDepthDataset(train_image_paths, train_labels, transform=build_transforms(args.size, do_aug=args.aug))
-    val_ds = ThreadDepthDataset(val_image_paths, val_labels, transform=build_transforms(args.size, do_aug=False))
+    train_ds = ThreadDepthDataset(train_image_paths, train_labels, transform=build_transforms(args.size, do_aug=args.aug), depth_range=(args.bins_min, args.bins_max))
+    val_ds = ThreadDepthDataset(val_image_paths, val_labels, transform=build_transforms(args.size, do_aug=False), depth_range=(args.bins_min, args.bins_max))
 
     print(f"Train dataset size: {len(train_ds)}")
     print(f"Val dataset size:   {len(val_ds)}")
@@ -234,9 +321,9 @@ def main():
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         dirpath=str(ckpt_dir),
-        filename="model-{epoch:03d}-{val_mae:.5f}",
-        monitor="val_mae",
-        mode="min",
+        filename="model-{epoch:03d}-{val_mae:.5f}-{val_frac_le1:.5f}",
+        monitor="val_frac_le1",
+        mode="max",
         save_top_k=10,
         save_last=True,
     )

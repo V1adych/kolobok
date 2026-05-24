@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 
 from tire_vision.config import DepthRegressorConfig, ort_providers, ort_opts
-from tire_vision.utils import expit
 
 
 class DepthRegressor:
@@ -15,14 +14,11 @@ class DepthRegressor:
             sess_options=ort_opts,
         )
 
-    def forward(self, image: np.ndarray):
-        resized_image = cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
-        image_input = resized_image.transpose(2, 0, 1)[None].astype(np.float32) / 255
+    def resize(self, image: np.ndarray):
+        return cv2.resize(image, self.config.resize_shape, interpolation=cv2.INTER_LINEAR)
 
-        result = self.session.run(None, {"input": image_input})[0]
-        result_scaled = 10 * expit(np.squeeze(result))
-
-        return float(result_scaled)
+    def forward(self, images: np.ndarray):
+        return self.session.run(None, {"input": images.transpose(0, 3, 1, 2).astype(np.float32) / 255.0})[0].squeeze(1)
 
     def __call__(self, image: np.ndarray):
         return self.forward(image)

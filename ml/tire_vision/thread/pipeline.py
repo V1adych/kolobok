@@ -99,13 +99,11 @@ class TireThreadPipeline:
         grouped_studs = self._group_studs(studs, tires, ambiguity_strategy)
 
         tire_results = []
-        for tire, tire_studs in zip(tires, grouped_studs):
-            cropped_image = self.segmentator.crop_tire(image, tire, options=segmentator_options)
-            if cropped_image is None:
-                continue
+        cropped_images = [self.segmentator.crop_tire(image, tire, options=segmentator_options) for tire in tires]
+        resized_images = np.stack([self.depth_regressor.resize(image) for image in cropped_images if image is not None], axis=0)
+        depths = self.depth_regressor(resized_images)
+        for tire, tire_studs, cropped_image, depth in zip(tires, grouped_studs, cropped_images, depths):
 
-            # depth = self.depth_regressor(cropped_image)
-            depth = 0.0
             num_studs_classified, fraction_healthy = self._fraction_healthy(tire_studs)
             tire_results.append(
                 AnalyzedTire(

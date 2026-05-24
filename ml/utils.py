@@ -86,23 +86,32 @@ def extract_tire_info(image: np.ndarray, options: Optional[TireAnnotationPipelin
 
 def add_annotations(image: np.ndarray, annotations: List[AnalyzedTire]) -> np.ndarray:
     image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    img_h, img_w = image_bgr.shape[:2]
     tire_colors = [(255, 0, 0), (0, 180, 255), (255, 0, 255), (0, 255, 0)]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.8
+    font_thickness = 2
+    text_padding = 4
     for idx, annotation in enumerate(annotations):
         x, y, w, h = annotation.box
         tire_color = tire_colors[idx % len(tire_colors)]
         mask = annotation.mask.astype(bool)
         image_bgr[mask] = (0.8 * image_bgr[mask] + 0.2 * np.array(tire_color, dtype=np.uint8)).astype(np.uint8)
-        cv2.rectangle(image_bgr, (x - w // 2, y - h // 2), (x + w // 2, y + h // 2), tire_color, 3)
-        cv2.putText(
-            image_bgr,
-            f"tire {annotation.score:.2f}",
-            (x - w // 2, max(0, y - h // 2 - 8)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            tire_color,
-            2,
-            cv2.LINE_AA,
-        )
+        x1 = max(0, x - w // 2)
+        y1 = max(0, y - h // 2)
+        x2 = min(img_w - 1, x + w // 2)
+        y2 = min(img_h - 1, y + h // 2)
+        cv2.rectangle(image_bgr, (x1, y1), (x2, y2), tire_color, 3)
+
+        score_text = f"tire {annotation.score:.2f}"
+        depth_text = f"depth {annotation.depth:.2f}"
+        (_, score_h), _ = cv2.getTextSize(score_text, font, font_scale, font_thickness)
+        (depth_w, depth_h), _ = cv2.getTextSize(depth_text, font, font_scale, font_thickness)
+        text_y = y1 + max(score_h, depth_h) + text_padding
+        depth_x = max(x1 + text_padding, x2 - depth_w - text_padding)
+        cv2.putText(image_bgr, score_text, (x1 + text_padding, text_y), font, font_scale, tire_color, font_thickness, cv2.LINE_AA)
+        cv2.putText(image_bgr, depth_text, (depth_x, text_y), font, font_scale, tire_color, font_thickness, cv2.LINE_AA)
+
         for stud in annotation.studs:
             sx, sy, sw, sh = stud.box
             stud_color = STUD_COLORS[stud.label_id]
