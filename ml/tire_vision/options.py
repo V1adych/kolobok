@@ -1,4 +1,4 @@
-from typing import Tuple, List, Literal
+from typing import Tuple, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 SimilarityMetric = Literal["levenshtein", "jaro_winkler"]
@@ -76,3 +76,4 @@ class TireThreadPipelineOptions(BaseModel):
     ambiguous_stud_resolution_strategy: AmbiguousStudResolutionStrategy = Field(
         "highest", description='How to assign a stud whose center falls into multiple tire masks: "all", "none", or "highest"'
     )
+    depth_label: Optional[float] = None
